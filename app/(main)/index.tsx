@@ -62,7 +62,7 @@ export default function Index() {
       {/* Botón inferior */}
       <Pressable
         style={({ pressed }) => [styles.startWrap, pressed && { transform: [{ translateY: 1 }] }]}
-        onPress={() => router.push('/login')}
+        onPress={() => router.push('/(auth)/number')}
       >
         <LinearGradient
           colors={['#4FB3F6', '#6B5CF0']}
