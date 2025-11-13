@@ -1,301 +1,406 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableWithoutFeedback,
-    View,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View
 } from 'react-native';
 
-export default function CreateTrip() {
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [time, setTime] = useState(new Date());
-  const [seats, setSeats] = useState('');
-  const [price, setPrice] = useState('');
-  const [showDate, setShowDate] = useState(false);
-  const [showTime, setShowTime] = useState(false);
+export default function DriverDashboard() {
+  const router = useRouter();
+  const [available, setAvailable] = useState(true);
 
-  const swapLocations = () => {
-    setOrigin(prev => {
-      const o = prev;
-      setDestination(o2 => (o2 === '' ? '' : prev));
-      return destination;
-    });
-  };
+  // Mock data
+  const earningsToday = 82000;
+  const weeklyGoal = 300000;
+  const weeklyProgress = Math.min(earningsToday / weeklyGoal, 1);
 
-  const formatDate = (d: Date) =>
-  d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
-
-const formatTime = (t: Date) =>
-  t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-
-  const handlePublish = () => {
-    if (!origin || !destination || !seats || !price) {
-      alert('Completa origen, destino, cupos y precio.');
-      return;
-    }
-    const payload = {
-      origin,
-      destination,
-      date: date.toISOString().split('T')[0],
-      time: `${time.getHours().toString().padStart(2, '0')}:${time
-        .getMinutes()
-        .toString()
-        .padStart(2, '0')}`,
-      seats: Number(seats),
-      price: Number(price),
-    };
-    console.log('Publicar viaje:', payload);
-    alert('¡Viaje publicado!');
-  };
+  const upcoming = [
+    { id: '1', origin: 'Univ. La Sabana', dest: 'Portal Norte', time: '13:40', seats: 3, price: 7000, status: 'Pendiente' },
+    { id: '2', origin: 'Chía Centro', dest: 'Calle 100', time: '16:10', seats: 2, price: 9000, status: 'Confirmado' },
+  ];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-            {/* Header curvo */}
-            <LinearGradient
-              colors={['#2F6CF4', '#00C2FF']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.header}
-            >
-              {/* Burbujas decorativas */}
-              <LinearGradient
-                colors={['#ffffff55', '#ffffff10']}
-                style={[styles.bubble, { width: 180, height: 180, borderRadius: 90, top: -40, right: -40 }]}
-              />
-              <LinearGradient
-                colors={['#ffffff55', '#ffffff10']}
-                style={[styles.bubble, { width: 120, height: 120, borderRadius: 60, bottom: -20, left: -20 }]}
-              />
-              <View style={styles.brandRow}>
-                <View style={styles.logoBadge}>
-                  <Ionicons name="navigate-outline" size={26} color="#2F6CF4" />
-                </View>
-                <View>
-                  <Text style={styles.brand}>UniRide</Text>
-                  <Text style={styles.subtitle}>Publica tu viaje como conductor</Text>
-                </View>
+      <ScrollView contentContainerStyle={styles.scroll}>
+
+        {/* HEADER */}
+        <LinearGradient
+          colors={['#2F6CF4', '#00C2FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          {/* burbujas */}
+          <LinearGradient colors={['#ffffff66', '#ffffff10']} style={[styles.bubble, { top: -30, right: -40, width: 160, height: 160, borderRadius: 80 }]} />
+          <LinearGradient colors={['#ffffff55', '#ffffff10']} style={[styles.bubble, { bottom: -20, left: -20, width: 120, height: 120, borderRadius: 60 }]} />
+
+          <View style={styles.headerTop}>
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={24} color="#2F6CF4" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.welcome}>Hola, Daniel</Text>
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={16} color="#FFD166" />
+                <Text style={styles.ratingText}>4.9 • 256 viajes</Text>
               </View>
-            </LinearGradient>
-
-            {/* Tarjeta */}
-            <View style={styles.card}>
-              <Text style={styles.title}>Crear viaje</Text>
-
-              {/* Origen */}
-              <View style={styles.inputRow}>
-                <Ionicons name="pin-outline" size={20} color="#4B5563" style={styles.icon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Origen (ej. Universidad de La Sabana)"
-                  placeholderTextColor="#6B7280"
-                  value={origin}
-                  onChangeText={setOrigin}
-                />
-                <Pressable onPress={swapLocations} hitSlop={10} style={styles.swapBtn}>
-                  <Ionicons name="swap-vertical-outline" size={20} color="#2F6CF4" />
-                </Pressable>
-              </View>
-
-              {/* Destino */}
-              <View style={styles.inputRow}>
-                <Ionicons name="flag-outline" size={20} color="#4B5563" style={styles.icon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Destino (ej. Portal Norte)"
-                  placeholderTextColor="#6B7280"
-                  value={destination}
-                  onChangeText={setDestination}
-                />
-              </View>
-
-              {/* Fecha */}
-              <Pressable style={styles.inputRow} onPress={() => setShowDate(true)}>
-                <Ionicons name="calendar-outline" size={20} color="#4B5563" style={styles.icon} />
-                <Text style={[styles.input, { paddingTop: 13 }]}>
-                  {formatDate(date)}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color="#6B7280" />
-              </Pressable>
-              {showDate && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  onChange={(e, selected) => {
-                    setShowDate(false);
-                    if (selected) setDate(selected);
-                  }}
-                />
-              )}
-
-              {/* Hora */}
-              <Pressable style={styles.inputRow} onPress={() => setShowTime(true)}>
-                <MaterialCommunityIcons name="clock-outline" size={20} color="#4B5563" style={styles.icon} />
-                <Text style={[styles.input, { paddingTop: 13 }]}>{formatTime(time)}</Text>
-                <Ionicons name="chevron-down" size={18} color="#6B7280" />
-              </Pressable>
-              {showTime && (
-                <DateTimePicker
-                  value={time}
-                  mode="time"
-                  is24Hour
-                  onChange={(e, selected) => {
-                    setShowTime(false);
-                    if (selected) setTime(selected);
-                  }}
-                />
-              )}
-
-              {/* Cupos */}
-              <View style={styles.inputRow}>
-                <Ionicons name="people-outline" size={20} color="#4B5563" style={styles.icon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Cupos disponibles (ej. 3)"
-                  placeholderTextColor="#6B7280"
-                  keyboardType="numeric"
-                  value={seats}
-                  onChangeText={setSeats}
-                />
-              </View>
-
-              {/* Precio */}
-              <View style={styles.inputRow}>
-                <Ionicons name="cash-outline" size={20} color="#4B5563" style={styles.icon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Precio por pasajero (COP)"
-                  placeholderTextColor="#6B7280"
-                  keyboardType="numeric"
-                  value={price}
-                  onChangeText={setPrice}
-                />
-              </View>
-
-              {/* Botón */}
-              <Pressable onPress={handlePublish} style={{ width: '100%' }}>
-                <LinearGradient
-                  colors={['#2F6CF4', '#00C2FF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.primaryBtn}
-                >
-                  <Text style={styles.primaryText}>Publicar viaje</Text>
-                </LinearGradient>
-              </Pressable>
             </View>
 
-            {/* Nota legal */}
-            <Text style={styles.legal}>
-              Recuerda cumplir con las normas de tránsito y las políticas de UniRide.
-            </Text>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+            <View style={styles.statusBox}>
+              <Text style={styles.statusText}>{available ? 'Disponible' : 'No disponible'}</Text>
+              <Switch
+                value={available}
+                onValueChange={setAvailable}
+                thumbColor={available ? '#fff' : '#fff'}
+                trackColor={{ false: '#BFC8FF', true: '#34D399' }}
+              />
+            </View>
+          </View>
+
+          {/* Meta rápida / resumen */}
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Hoy</Text>
+              <Text style={styles.summaryValue}>${earningsToday.toLocaleString('es-CO')}</Text>
+            </View>
+            <View style={[styles.summaryItem, { alignItems: 'flex-end' }]}>
+              <Text style={styles.summaryLabel}>Meta semanal</Text>
+              <Text style={styles.summaryValue}>${weeklyGoal.toLocaleString('es-CO')}</Text>
+            </View>
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${weeklyProgress * 100}%` }]} />
+          </View>
+        </LinearGradient>
+
+        {/* TARJETA ACCIONES RÁPIDAS */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Acciones rápidas</Text>
+          <View style={styles.actionsGrid}>
+            <ActionBtn
+              icon={<Ionicons name="add-circle-outline" size={22} color="#2F6CF4" />}
+              label="Publicar viaje"
+              onPress={() => router.push('/(main)/indexDriver')}
+            />
+            <ActionBtn
+              icon={<MaterialCommunityIcons name="clipboard-text-outline" size={22} color="#2F6CF4" />}
+              label="Mis viajes"
+              onPress={() => router.push('/(main)/indexDriver')}
+            />
+            <ActionBtn
+              icon={<MaterialCommunityIcons name="car-cog" size={22} color="#2F6CF4" />}
+              label="Vehículo"
+              onPress={() => router.push('/(main)/indexDriver')}
+            />
+            <ActionBtn
+              icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
+              label="Soporte"
+              onPress={() => router.push('/(main)/indexDriver')}
+            />
+          </View>
+        </View>
+
+        {/* PRÓXIMOS VIAJES */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>Próximos viajes</Text>
+            <Pressable onPress={() => router.push('/(main)/indexDriver')}>
+              <Text style={styles.link}>Ver todos</Text>
+            </Pressable>
+          </View>
+
+          {upcoming.map(item => (
+            <View key={item.id} style={styles.tripRow}>
+              <View style={styles.tripIcon}>
+                <Ionicons name="navigate-outline" size={18} color="#2F6CF4" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tripRoute}>{item.origin} → {item.dest}</Text>
+                <View style={styles.tripMeta}>
+                  <Badge icon="time-outline" text={item.time} />
+                  <Badge icon="people-outline" text={`${item.seats} cupos`} />
+                  <Badge icon="cash-outline" text={`$${item.price.toLocaleString('es-CO')}`} />
+                </View>
+              </View>
+              <StatusPill status={item.status} />
+            </View>
+          ))}
+        </View>
+
+        {/* CTA STICKY */}
+        <View style={{ height: 90 }} />
+      </ScrollView>
+
+      <Pressable
+        style={styles.fabWrap}
+        onPress={() => router.push('/(main)/indexDriver')}
+      >
+        <LinearGradient
+          colors={['#2F6CF4', '#00C2FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fab}
+        >
+          <Ionicons name="add" size={22} color="#fff" />
+          <Text style={styles.fabText}>Publicar viaje</Text>
+        </LinearGradient>
+      </Pressable>
     </SafeAreaView>
   );
 }
 
+/* ---------- COMPONENTES AUXILIARES ---------- */
+import { ReactNode } from 'react';
+
+type ActionBtnProps = {
+  icon: ReactNode;
+  label: string;
+  onPress: () => void;
+};
+
+function ActionBtn({ icon, label, onPress }: ActionBtnProps) {
+  return (
+    <Pressable onPress={onPress} style={styles.actionBtn}>
+      <View style={styles.actionIcon}>{icon}</View>
+      <Text style={styles.actionLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+type BadgeProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+};
+
+function Badge({ icon, text }: BadgeProps) {
+  return (
+    <View style={styles.badge}>
+      <Ionicons name={icon} size={14} color="#4B5563" />
+      <Text style={styles.badgeText}>{text}</Text>
+    </View>
+  );
+}
+
+type StatusPillProps = {
+  status: 'Pendiente' | 'Confirmado' | 'Cancelado' | string;
+};
+
+function StatusPill({ status }: StatusPillProps) {
+  const map = {
+    Pendiente: { bg: '#FFF7ED', color: '#C2410C' },
+    Confirmado: { bg: '#ECFDF5', color: '#047857' },
+    Cancelado: { bg: '#FEF2F2', color: '#B91C1C' },
+  } as const;
+  const s = map[status as keyof typeof map] || { bg: '#EEF2FF', color: '#3730A3' };
+
+  return (
+    <View style={[styles.pill, { backgroundColor: s.bg }]}>
+      <Text style={[styles.pillText, { color: s.color }]}>{status}</Text>
+    </View>
+  );
+}
+
+/* ---------- ESTILOS ---------- */
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, alignItems: 'center', paddingBottom: 40 },
+  scroll: {
+    flexGrow: 1,
+  },
+
+  /* Header */
   header: {
-    width: '100%',
-    height: 220,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    paddingHorizontal: 22,
-    paddingTop: 38,
-    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
-  bubble: { position: 'absolute', opacity: 0.9 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  logoBadge: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    width: 54,
-    height: 54,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
+  bubble: {
+    position: 'absolute',
+    opacity: 0.9,
   },
-  brand: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  subtitle: { color: '#E6F7FF', fontSize: 13 },
-
-  card: {
-    backgroundColor: '#fff',
-    width: '90%',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 6,
-    marginTop: -80,
-  },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 12 },
-
-  inputRow: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+  },
+  avatar: {
+    width: 46,
+    height: 46,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 50,
-    width: '100%',
-    marginBottom: 14,
-  },
-  icon: { marginRight: 8 },
-  input: { flex: 1, fontSize: 16, color: '#111827' },
-
-  swapBtn: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: '#EEF4FF',
-  },
-
-  primaryBtn: {
-    height: 50,
-    borderRadius: 14,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
-    marginTop: 6,
-    shadowColor: '#2F6CF4',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    marginRight: 12,
+    elevation: 3,
   },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  welcome: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratingText: {
+    color: '#E6F7FF',
+    fontSize: 13,
+  },
+  statusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff22',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: { color: '#fff', fontWeight: '700', marginRight: 6 },
 
-  legal: {
-    textAlign: 'center',
-    color: '#6B7280',
-    fontSize: 12,
-    marginTop: 18,
-    paddingHorizontal: 24,
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 14,
+  },
+  summaryItem: {},
+  summaryLabel: { color: '#E6F7FF', fontSize: 12 },
+  summaryValue: { color: '#fff', fontSize: 18, fontWeight: '800' },
+
+  progressTrack: {
+    marginTop: 10,
+    height: 8,
+    borderRadius: 6,
+    backgroundColor: '#ffffff33',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#34D399',
+  },
+
+  /* Cards */
+  card: {
+    backgroundColor: '#fff',
+    marginHorizontal: 18,
+    marginTop: 14,
+    padding: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 10 },
+
+  /* Actions */
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionBtn: {
+    width: '48%',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  actionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
+    color: '#1F2937',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  link: { color: '#2F6CF4', fontWeight: '700' },
+
+  /* Trips */
+  tripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  tripIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EEF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tripRoute: {
+    color: '#111827',
+    fontWeight: '700',
+  },
+  tripMeta: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+  },
+  badgeText: { color: '#4B5563', fontSize: 12 },
+
+  pill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  pillText: { fontWeight: '800', fontSize: 12 },
+
+  /* FAB */
+  fabWrap: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 18,
+  },
+  fab: {
+    height: 54,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    elevation: 5,
+  },
+  fabText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 16,
   },
 });
