@@ -43,13 +43,13 @@ export default function DriverDashboard() {
 
           <View style={styles.headerTop}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={24} color="#2F6CF4" />
+              <Ionicons name="person" size={24} color="#2F6CF4" onPress={() => router.push('/(main)/driverProfile')}/>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.welcome}>Hola, Daniel</Text>
               <View style={styles.ratingRow}>
                 <Ionicons name="star" size={16} color="#FFD166" />
-                <Text style={styles.ratingText}>4.9 • 256 viajes</Text>
+                <Text style={styles.ratingText}>4.9</Text>
               </View>
             </View>
 
@@ -88,17 +88,17 @@ export default function DriverDashboard() {
             <ActionBtn
               icon={<Ionicons name="add-circle-outline" size={22} color="#2F6CF4" />}
               label="Publicar viaje"
-              onPress={() => router.push('/(main)/indexDriver')}
+              onPress={() => router.push('/(main)/createTrip')}
             />
             <ActionBtn
               icon={<MaterialCommunityIcons name="clipboard-text-outline" size={22} color="#2F6CF4" />}
               label="Mis viajes"
-              onPress={() => router.push('/(main)/indexDriver')}
+              onPress={() => router.push('/(main)/miTrip')}
             />
             <ActionBtn
               icon={<MaterialCommunityIcons name="car-cog" size={22} color="#2F6CF4" />}
               label="Vehículo"
-              onPress={() => router.push('/(main)/indexDriver')}
+              onPress={() => router.push('/(main)/vehicleManager')}
             />
             <ActionBtn
               icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}

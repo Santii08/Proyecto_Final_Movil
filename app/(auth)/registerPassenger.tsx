@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Keyboard,
@@ -122,7 +123,7 @@ export default function RegisterPassenger() {
                 </Pressable>
               </View>
 
-              <Pressable onPress={handleRegister} style={{ width: '100%' }}>
+              <Pressable onPress={() => router.push('/(main)/indexPassanger')} style={{ width: '100%' }}>
                 <LinearGradient
                   colors={['#2F6CF4', '#00C2FF']}
                   start={{ x: 0, y: 0 }}
