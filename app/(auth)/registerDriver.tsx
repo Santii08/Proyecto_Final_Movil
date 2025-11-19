@@ -1,8 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useContext, useState } from 'react';
 import {
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -15,8 +16,19 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { AuthContext } from '../contexts/AuthContext'; // ajusta ruta
 
 export default function RegisterDriver() {
+  const { register } = useContext(AuthContext);
+
+  // 👇 leer params de la ruta
+  const params = useLocalSearchParams<{
+    phone?: string;
+    role?: 'driver' | 'passenger';
+  }>();
+
+  const phoneFromParams = typeof params.phone === 'string' ? params.phone : '';
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [vehicle, setVehicle] = useState('');
@@ -25,9 +37,54 @@ export default function RegisterDriver() {
   const [confirm, setConfirm] = useState('');
   const [secure, setSecure] = useState(true);
   const [secureConfirm, setSecureConfirm] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
-    console.log('Registro conductor:', { name, email, vehicle, plate, password });
+  const handleRegister = async () => {
+    if (!name.trim() || !email.trim() || !plate.trim() || !password || !confirm) {
+      Alert.alert('Campos incompletos', 'Por favor completa todos los campos obligatorios.');
+      return;
+    }
+
+    if (password !== confirm) {
+      Alert.alert('Contraseñas no coinciden', 'La contraseña y la confirmación deben ser iguales.');
+      return;
+    }
+
+    const parts = name.trim().split(' ');
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ') || '';
+
+    setLoading(true);
+    try {
+      const success = await register(
+        {
+          id: '',
+          email: email.trim().toLowerCase(),
+          firstName,
+          lastName,
+          phone: phoneFromParams || null,
+          plate: plate.trim().toUpperCase(),
+          rol: 'conductor', // 👈 esto es lo que guardas en la tabla
+        } as any,
+        password
+      );
+
+      if (success) {
+        Alert.alert('Registro exitoso', 'Tu perfil de conductor ha sido creado.', [
+          {
+            text: 'Continuar',
+            onPress: () => router.replace('/(main)/indexDriver'),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', 'No se pudo completar el registro. Inténtalo de nuevo.');
+      }
+    } catch (error) {
+      console.error('❌ Error en register driver:', error);
+      Alert.alert('Error inesperado', 'Ocurrió un problema, inténtalo nuevamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -120,6 +177,7 @@ export default function RegisterDriver() {
                   placeholderTextColor="#6B7280"
                   value={plate}
                   onChangeText={setPlate}
+                  autoCapitalize="characters"
                 />
               </View>
 
@@ -164,14 +222,16 @@ export default function RegisterDriver() {
               </View>
 
               {/* Botón */}
-              <Pressable onPress={() => router.push('/(main)/indexDriver')} style={{ width: '100%' }}>
+              <Pressable onPress={handleRegister} style={{ width: '100%' }} disabled={loading}>
                 <LinearGradient
                   colors={['#28A745', '#34D058']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.button}
+                  style={[styles.button, loading && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.buttonText}>Registrarse</Text>
+                  <Text style={styles.buttonText}>
+                    {loading ? 'Creando cuenta...' : 'Registrarse'}
+                  </Text>
                 </LinearGradient>
               </Pressable>
             </View>

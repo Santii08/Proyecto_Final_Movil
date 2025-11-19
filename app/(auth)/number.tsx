@@ -18,10 +18,19 @@ export default function PhoneNumber() {
       return;
     }
 
-    if (role === 'passenger') router.push('/registerPassenger');
-    else router.push('/registerDriver');
+    if (role === 'passenger') {
+      router.push({
+        pathname: '/registerPassenger',
+        params: { phone, role: 'passenger' },
+      });
+    } else {
+      router.push({
+        pathname: '/registerDriver',
+        params: { phone, role: 'driver' },
+      });
+    }
   };
-
+  
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Regístrate con tu número</Text>
