@@ -6,62 +6,56 @@ import {
   Alert,
   FlatList,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
-/* ---------- TYPES ---------- */
+/* ---------- TIPOS PARA LA UI ---------- */
 type Trip = {
   id: string;
-  driver: string;
+  driver: string;      // nombre que mostramos
+  driverId: string;    // id del conductor en usuarios
   origin: string;
   destination: string;
-  time: string;
+  time: string;        // hora formateada
   price: number;
   rating: number;
 };
 
-/* ---------- MOCK DATA ---------- */
-const mockTrips: Trip[] = [
-  {
-    id: "1",
-    driver: "Carlos Pérez",
-    origin: "Universidad de La Sabana",
-    destination: "Portal Norte",
-    time: "13:45",
-    price: 7000,
-    rating: 4.9,
-  },
-  {
-    id: "2",
-    driver: "María López",
-    origin: "Chía Centro",
-    destination: "Calle 100",
-    time: "14:10",
-    price: 9000,
-    rating: 4.8,
-  },
-  {
-    id: "3",
-    driver: "Andrés Gómez",
-    origin: "La Caro",
-    destination: "Unicentro",
-    time: "15:00",
-    price: 8500,
-    rating: 5.0,
-  },
-];
+/* ---------- TIPO TAL COMO LLEGA DE SUPABASE ---------- */
+type TripFromDB = {
+  id: string;
+  driver_id: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  price: number;
+  seats_total: number;
+  seats_available: number;
+  status: string;
+  vehicle_id: string | null;
+  vehiculo?: {
+    plate?: string | null;
+    color?: string | null;
+  } | null;
+  conductor?: {
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
+};
 
 const PassengerHome: React.FC = () => {
   const [search, setSearch] = useState("");
   const { user, setUser } = useContext(AuthContext);
+  const insets = useSafeAreaInsets();
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
 
   /* -----------------------------------------
      🔄 Hidratar usuario si viene null 
@@ -99,7 +93,11 @@ const PassengerHome: React.FC = () => {
             lastName: data.user.user_metadata?.last_name ?? "",
             phone: data.user.user_metadata?.phone ?? "",
             plate: data.user.user_metadata?.plate ?? "",
-            rol: (data.user.user_metadata?.rol as "pasajero" | "conductor" | "ambos") ?? "pasajero",
+            rol:
+              (data.user.user_metadata?.rol as
+                | "pasajero"
+                | "conductor"
+                | "ambos") ?? "pasajero",
           };
 
           setUser(fallbackUser);
@@ -118,7 +116,10 @@ const PassengerHome: React.FC = () => {
 
         setUser(finalUser);
       } catch (err: any) {
-        console.error("❌ Error hidratando usuario en IndexPassenger:", err.message);
+        console.error(
+          "❌ Error hidratando usuario en IndexPassenger:",
+          err.message
+        );
       }
     };
 
@@ -126,9 +127,90 @@ const PassengerHome: React.FC = () => {
   }, [user, setUser]);
 
   /* -----------------------------------------
+     🚗 Cargar viajes disponibles de otros conductores
+  ------------------------------------------*/
+  useEffect(() => {
+    const fetchTrips = async () => {
+      if (!user) return; // necesito saber quién es el pasajero para filtrar sus propios viajes
+
+      try {
+        setLoadingTrips(true);
+
+        const { data, error } = await supabase
+          .from("viajes")
+          .select(
+            `
+            id,
+            driver_id,
+            origin,
+            destination,
+            departure_time,
+            price,
+            seats_total,
+            seats_available,
+            status,
+            vehicle_id,
+            vehiculo:vehiculos (
+              plate,
+              color
+            ),
+            conductor:usuarios (
+              first_name,
+              last_name
+            )
+          `
+          )
+          .eq("status", "publicado")       // solo viajes publicados
+          .gt("seats_available", 0)        // con cupos disponibles
+          .neq("driver_id", user.id);      // 👈 excluir viajes del propio usuario
+
+        if (error) {
+          console.error("❌ Error cargando viajes:", error.message);
+          return;
+        }
+
+        const mapped: Trip[] =
+          (data as TripFromDB[]).map((t) => {
+            // nombre del conductor: primero intento con usuarios, si no, placa
+            const nombreConductor =
+              t.conductor?.first_name || t.conductor?.last_name
+                ? `${t.conductor?.first_name ?? ""} ${
+                    t.conductor?.last_name ?? ""
+                  }`.trim()
+                : t.vehiculo?.plate
+                ? `Placa ${t.vehiculo.plate}`
+                : "Conductor UniRide";
+
+            return {
+              id: t.id,
+              driverId: t.driver_id,
+              driver: nombreConductor,
+              origin: t.origin,
+              destination: t.destination,
+              time: new Date(t.departure_time).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              price: t.price,
+              rating: 5.0, // de momento fijo; luego puedes calcularlo de otra tabla
+            };
+          }) ?? [];
+
+        setTrips(mapped);
+      } catch (e) {
+        console.error("❌ Excepción al cargar viajes:", e);
+      } finally {
+        setLoadingTrips(false);
+      }
+    };
+
+    fetchTrips();
+  }, [user]);
+
+  /* -----------------------------------------
      FILTRO DE VIAJES
   ------------------------------------------*/
-  const filteredTrips = mockTrips.filter(
+  const filteredTrips = trips.filter(
     (t) =>
       t.origin.toLowerCase().includes(search.toLowerCase()) ||
       t.destination.toLowerCase().includes(search.toLowerCase())
@@ -146,14 +228,27 @@ const PassengerHome: React.FC = () => {
       return;
     }
 
+    // por si acaso, evitar que un conductor reserve su propio viaje
+    if (trip.driverId === user.id) {
+      Alert.alert(
+        "Aviso",
+        "No puedes reservar un viaje que tú mismo ofreces como conductor."
+      );
+      return;
+    }
+
     try {
       // Evitar reservas repetidas
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("reservas")
         .select("*")
         .eq("trip_id", trip.id)
         .eq("passenger_id", user.id)
         .maybeSingle();
+
+      if (existingError) {
+        console.error("❌ Error comprobando reserva existente:", existingError);
+      }
 
       if (existing) {
         Alert.alert("Aviso", "Ya tienes una reserva para este viaje.");
@@ -185,27 +280,32 @@ const PassengerHome: React.FC = () => {
   /* ------------------------------------------------ */
 
   const handleProfilePress = () => {
-  if (!user) {
-    router.push("./(main)/passangerProfile");
-    return;
-  }
+    if (!user) {
+      router.push("/(main)/passangerProfile");
+      return;
+    }
 
-  if (user.rol === "conductor") {
-    router.push("/(main)/driverProfile");
-  } else {
-    router.push("./(main)/passangerProfile");
-  }
-};
-
+    if (user.rol === "conductor") {
+      router.push("/(main)/driverProfile");
+    } else {
+      router.push("/(main)/passangerProfile");
+    }
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
+    <SafeAreaView
+          style={{ flex: 1, backgroundColor: '#F5F7FB' }}
+          edges={['left', 'right', 'bottom']}
+        >
       <ScrollView contentContainerStyle={styles.scroll}>
         <LinearGradient
           colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[
+            styles.header,
+            { paddingTop: 18 + insets.top },
+          ]}
         >
           <View style={styles.headerTop}>
             <View>
@@ -237,7 +337,7 @@ const PassengerHome: React.FC = () => {
           <ActionButton
             icon={<Ionicons name="time-outline" size={22} color="#2F6CF4" />}
             label="Historial"
-            onPress={() => router.push("./(main)/historyReservations")}
+            onPress={() => router.push("/(main)/historyReservations")}
           />
 
           <ActionButton
@@ -249,13 +349,15 @@ const PassengerHome: React.FC = () => {
               />
             }
             label="Mis reservas"
-            onPress={() => router.push("./(main)/myReservation")}
+            onPress={() => router.push("/(main)/myReservation")}
           />
 
           <ActionButton
-            icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
+            icon={
+              <Ionicons name="headset-outline" size={22} color="#2F6CF4" />
+            }
             label="Soporte"
-            onPress={() => router.push("./(main)/support")}
+            onPress={() => router.push("/(main)/support")}
           />
         </View>
 
@@ -263,7 +365,9 @@ const PassengerHome: React.FC = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Viajes disponibles</Text>
 
-          {filteredTrips.length === 0 ? (
+          {loadingTrips ? (
+            <Text style={styles.noTrips}>Cargando viajes...</Text>
+          ) : filteredTrips.length === 0 ? (
             <Text style={styles.noTrips}>No se encontraron viajes</Text>
           ) : (
             <FlatList
@@ -279,7 +383,8 @@ const PassengerHome: React.FC = () => {
                         {item.origin} → {item.destination}
                       </Text>
                       <Text style={styles.tripMeta}>
-                        {item.time} | ${item.price.toLocaleString("es-CO")}
+                        {item.time} | $
+                        {item.price.toLocaleString("es-CO")}
                       </Text>
                     </View>
                   </View>
@@ -335,7 +440,6 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 25,
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,

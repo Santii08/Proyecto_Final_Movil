@@ -16,7 +16,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { AuthContext } from '../contexts/AuthContext'; // ajusta ruta
+import { AuthContext } from '../contexts/AuthContext';
 
 export default function RegisterDriver() {
   const { register } = useContext(AuthContext);
