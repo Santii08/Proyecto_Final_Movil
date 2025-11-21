@@ -1,7 +1,9 @@
+// app/(auth)/login.tsx
+
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -16,11 +18,55 @@ import {
   View,
 } from 'react-native';
 
+import { AuthContext } from '../contexts/AuthContext';
+
 export default function Login() {
   const router = useRouter();
+  const { login } = useContext(AuthContext);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [secure, setSecure] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleLogin = async () => {
+    setErrorMsg(null);
+
+    if (!email.trim() || !password) {
+      setErrorMsg('Por favor ingresa tu correo y contraseña.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('Login pressed');
+
+      // 👇 login debe devolver User | null en tu AuthContext
+      const loggedUser = await login(email.trim().toLowerCase(), password);
+
+      if (!loggedUser) {
+        setErrorMsg('Correo o contraseña incorrectos.');
+        return;
+      }
+
+      console.log('ROL:', loggedUser.rol);
+
+      if (loggedUser.rol === 'pasajero') {
+        router.replace('/(main)/indexPassanger');
+      } else if (loggedUser.rol === 'conductor') {
+        router.replace('/(main)/indexDriver');
+      } else {
+        // rol = 'ambos'
+        router.replace('/(main)/indexPassanger'); // ajusta a como se llame tu archivo
+      }
+    } catch (e) {
+      console.error('❌ Error en handleLogin:', e);
+      setErrorMsg('Ocurrió un error al iniciar sesión.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
@@ -44,13 +90,31 @@ export default function Login() {
               {/* Burbujas decorativas */}
               <LinearGradient
                 colors={['#ffffff66', '#ffffff10']}
-                style={[styles.bubble, { width: 180, height: 180, borderRadius: 90, top: -40, right: -40 }]}
+                style={[
+                  styles.bubble,
+                  {
+                    width: 180,
+                    height: 180,
+                    borderRadius: 90,
+                    top: -40,
+                    right: -40,
+                  },
+                ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               />
               <LinearGradient
                 colors={['#ffffff55', '#ffffff10']}
-                style={[styles.bubble, { width: 120, height: 120, borderRadius: 60, bottom: -30, left: -20 }]}
+                style={[
+                  styles.bubble,
+                  {
+                    width: 120,
+                    height: 120,
+                    borderRadius: 60,
+                    bottom: -30,
+                    left: -20,
+                  },
+                ]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               />
@@ -60,7 +124,9 @@ export default function Login() {
                 </View>
                 <View>
                   <Text style={styles.brand}>UniRide</Text>
-                  <Text style={styles.subtitle}>Tu viaje, más fácil y seguro</Text>
+                  <Text style={styles.subtitle}>
+                    Tu viaje, más fácil y seguro
+                  </Text>
                 </View>
               </View>
             </LinearGradient>
@@ -70,7 +136,12 @@ export default function Login() {
               <Text style={styles.title}>Iniciar sesión</Text>
 
               <View style={styles.inputRow}>
-                <Ionicons name="mail-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+                <Ionicons
+                  name="mail-outline"
+                  size={20}
+                  color="#6B7280"
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder="Correo electrónico"
@@ -84,7 +155,12 @@ export default function Login() {
               </View>
 
               <View style={styles.inputRow}>
-                <MaterialCommunityIcons name="lock-outline" size={20} color="#6B7280" style={styles.inputIcon} />
+                <MaterialCommunityIcons
+                  name="lock-outline"
+                  size={20}
+                  color="#6B7280"
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder="Contraseña"
@@ -93,23 +169,50 @@ export default function Login() {
                   onChangeText={setPassword}
                   secureTextEntry={secure}
                 />
-                <Pressable style={styles.eyeBtn} hitSlop={10} onPress={() => setSecure(v => !v)}>
-                  <Ionicons name={secure ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
+                <Pressable
+                  style={styles.eyeBtn}
+                  hitSlop={10}
+                  onPress={() => setSecure(v => !v)}
+                >
+                  <Ionicons
+                    name={secure ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color="#6B7280"
+                  />
                 </Pressable>
               </View>
+
+              {errorMsg && (
+                <Text
+                  style={{
+                    color: '#DC2626',
+                    fontSize: 13,
+                    alignSelf: 'flex-start',
+                    marginBottom: 8,
+                  }}
+                >
+                  {errorMsg}
+                </Text>
+              )}
 
               <Pressable onPress={() => router.push('/(auth)/recover')}>
                 <Text style={styles.forgot}>¿Olvidaste tu contraseña?</Text>
               </Pressable>
 
-              <Pressable onPress={() => console.log('Login pressed')} style={{ width: '100%' }}>
+              <Pressable
+                onPress={handleLogin}
+                style={{ width: '100%' }}
+                disabled={loading}
+              >
                 <LinearGradient
                   colors={['#2F6CF4', '#00C2FF']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.primaryText}>Entrar</Text>
+                  <Text style={styles.primaryText}>
+                    {loading ? 'Ingresando...' : 'Entrar'}
+                  </Text>
                 </LinearGradient>
               </Pressable>
 
@@ -124,15 +227,20 @@ export default function Login() {
                 <Text style={styles.socialText}>Continuar con Google</Text>
               </Pressable>
 
-              <Pressable onPress={() => router.push('/number')} style={{ marginTop: 16 }}>
+              <Pressable
+                onPress={() => router.push('/number')}
+                style={{ marginTop: 16 }}
+              >
                 <Text style={styles.register}>
-                  ¿Nuevo por aquí? <Text style={styles.registerStrong}>Crear cuenta</Text>
+                  ¿Nuevo por aquí?{' '}
+                  <Text style={styles.registerStrong}>Crear cuenta</Text>
                 </Text>
               </Pressable>
             </View>
 
             <Text style={styles.legal}>
-              Al continuar aceptas nuestros <Text style={styles.link}>Términos</Text> y la{' '}
+              Al continuar aceptas nuestros{' '}
+              <Text style={styles.link}>Términos</Text> y la{' '}
               <Text style={styles.link}>Política de Privacidad</Text>.
             </Text>
           </ScrollView>
@@ -146,7 +254,6 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingBottom: 30,
-    // Centramos en alto, pero dejamos espacio para que la tarjeta se solape
     justifyContent: 'flex-start',
     alignItems: 'center',
   },
@@ -160,7 +267,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 18,
     justifyContent: 'flex-end',
-    overflow: 'hidden', // importante para que se vean las curvas limpias
+    overflow: 'hidden',
     shadowColor: '#2F6CF4',
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -188,7 +295,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
-  brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 },
+  brand: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
   subtitle: { color: '#E6F7FF', fontSize: 13, marginTop: 2 },
 
   /* CARD */
@@ -199,10 +311,9 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 14,
     elevation: 6,
-    // La subimos para que “muerda” el header y no se vea abajo
     marginTop: 50,
   },
   title: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 12 },
@@ -223,7 +334,12 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 16, color: '#111827' },
   eyeBtn: { padding: 6 },
 
-  forgot: { alignSelf: 'flex-end', color: '#2F6CF4', fontSize: 13, marginBottom: 15 },
+  forgot: {
+    alignSelf: 'flex-end',
+    color: '#2F6CF4',
+    fontSize: 13,
+    marginBottom: 15,
+  },
 
   primaryBtn: {
     height: 50,
@@ -238,7 +354,13 @@ const styles = StyleSheet.create({
   },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12, width: '100%' },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginVertical: 12,
+    width: '100%',
+  },
   divider: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerText: { color: '#6B7280', fontSize: 13 },
 

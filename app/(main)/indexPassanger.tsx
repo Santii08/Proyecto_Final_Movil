@@ -1,17 +1,20 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
-    FlatList,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
+
+// 👇 Contexto de autenticación
+import { AuthContext } from '../contexts/AuthContext';
 
 /* ---------- TYPES ---------- */
 type Trip = {
@@ -57,6 +60,7 @@ const mockTrips: Trip[] = [
 
 const PassengerHome: React.FC = () => {
   const [search, setSearch] = useState('');
+  const { user } = useContext(AuthContext);
 
   const filteredTrips = mockTrips.filter(
     t =>
@@ -64,10 +68,31 @@ const PassengerHome: React.FC = () => {
       t.destination.toLowerCase().includes(search.toLowerCase())
   );
 
+  // 👇 Nombre del usuario logueado (si no hay, usamos UniRider)
+  const firstName = user?.firstName?.trim() || 'UniRider';
+
+  const handleProfilePress = () => {
+    if (!user) {
+      // Si no hay sesión, lo mandamos al login
+      router.push('/(auth)/login');
+      return;
+    }
+
+    // Desde la home de pasajero:
+    //  - pasajero  -> perfil de pasajero
+    //  - ambos     -> también perfil de pasajero
+    //  - conductor -> perfil de conductor
+    if (user.rol === 'conductor') {
+      router.push('/(main)/driverProfile');
+    } else {
+      // 'pasajero' o 'ambos'
+      router.push('/(main)/passangerProfile'); // asegúrate que el archivo se llame igual
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
       <ScrollView contentContainerStyle={styles.scroll}>
-
         {/* Header Curvo */}
         <LinearGradient
           colors={['#2F6CF4', '#00C2FF']}
@@ -77,10 +102,15 @@ const PassengerHome: React.FC = () => {
         >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.welcome}>Hola, Juan 👋</Text>
+              <Text style={styles.welcome}>Hola, {firstName} 👋</Text>
               <Text style={styles.subtext}>¿A dónde quieres ir hoy?</Text>
             </View>
-            <Ionicons name="person-circle-outline" size={40} color="#fff" onPress={() => router.push('/(main)/driverProfile')}/>
+            <Ionicons
+              name="person-circle-outline"
+              size={40}
+              color="#fff"
+              onPress={handleProfilePress}
+            />
           </View>
 
           {/* Barra de búsqueda */}
@@ -103,7 +133,13 @@ const PassengerHome: React.FC = () => {
             label="Historial"
           />
           <ActionButton
-            icon={<MaterialCommunityIcons name="clipboard-text-outline" size={22} color="#2F6CF4" />}
+            icon={
+              <MaterialCommunityIcons
+                name="clipboard-text-outline"
+                size={22}
+                color="#2F6CF4"
+              />
+            }
             label="Mis reservas"
           />
           <ActionButton
@@ -141,7 +177,9 @@ const PassengerHome: React.FC = () => {
                     <Text style={styles.driverName}>{item.driver}</Text>
                     <View style={styles.ratingRow}>
                       <Ionicons name="star" size={14} color="#FFD166" />
-                      <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                      <Text style={styles.ratingText}>
+                        {item.rating.toFixed(1)}
+                      </Text>
                     </View>
                     <Pressable style={styles.reserveBtn}>
                       <Text style={styles.reserveText}>Reservar</Text>
