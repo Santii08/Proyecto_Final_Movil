@@ -185,17 +185,18 @@ const PassengerHome: React.FC = () => {
   /* ------------------------------------------------ */
 
   const handleProfilePress = () => {
-    if (!user) {
-      router.push("/(main)/passangerProfile");
-      return;
-    }
+  if (!user) {
+    router.push("./(main)/passangerProfile");
+    return;
+  }
 
-    if (user.rol === "conductor") {
-      router.push("/(main)/driverProfile");
-    } else {
-      router.push("/(main)/passangerProfile");
-    }
-  };
+  if (user.rol === "conductor") {
+    router.push("/(main)/driverProfile");
+  } else {
+    router.push("./(main)/passangerProfile");
+  }
+};
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
@@ -236,7 +237,7 @@ const PassengerHome: React.FC = () => {
           <ActionButton
             icon={<Ionicons name="time-outline" size={22} color="#2F6CF4" />}
             label="Historial"
-            onPress={() => router.push("/(main)/historyReservations")}
+            onPress={() => router.push("./(main)/historyReservations")}
           />
 
           <ActionButton
@@ -248,13 +249,13 @@ const PassengerHome: React.FC = () => {
               />
             }
             label="Mis reservas"
-            onPress={() => router.push("/(main)/myReservation")}
+            onPress={() => router.push("./(main)/myReservation")}
           />
 
           <ActionButton
             icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
             label="Soporte"
-            onPress={() => router.push("/(main)/support")}
+            onPress={() => router.push("./(main)/support")}
           />
         </View>
 

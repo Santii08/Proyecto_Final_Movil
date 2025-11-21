@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ReactNode, useCallback, useContext, useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -11,10 +11,17 @@ import {
   Text,
   View
 } from 'react-native';
+import { AuthContext } from "../contexts/AuthContext";
+import { supabase } from "../utils/supabase";
 
 export default function DriverDashboard() {
   const router = useRouter();
   const [available, setAvailable] = useState(true);
+  const { user, setUser } = useContext(AuthContext);
+
+  const firstName =
+    (user as any)?.first_name ??
+    "Conductor UniRide";
 
   // Mock data
   const earningsToday = 82000;
@@ -25,6 +32,27 @@ export default function DriverDashboard() {
     { id: '1', origin: 'Univ. La Sabana', dest: 'Portal Norte', time: '13:40', seats: 3, price: 7000, status: 'Pendiente' },
     { id: '2', origin: 'Chía Centro', dest: 'Calle 100', time: '16:10', seats: 2, price: 9000, status: 'Confirmado' },
   ];
+
+  const fetchUserProfile = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    if (error) {
+      console.log("Error fetching profile:", error.message);
+    }
+    else if (data) {
+      setUser(data);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
@@ -43,10 +71,10 @@ export default function DriverDashboard() {
 
           <View style={styles.headerTop}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={24} color="#2F6CF4" onPress={() => router.push('/(main)/driverProfile')}/>
+              <Ionicons name="person" size={24} color="#2F6CF4" onPress={() => router.push('/(main)/driverProfile')} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.welcome}>Hola, Daniel</Text>
+              <Text style={styles.welcome}>Hola, {firstName}</Text>
               <View style={styles.ratingRow}>
                 <Ionicons name="star" size={16} color="#FFD166" />
                 <Text style={styles.ratingText}>4.9</Text>
@@ -156,9 +184,6 @@ export default function DriverDashboard() {
     </SafeAreaView>
   );
 }
-
-/* ---------- COMPONENTES AUXILIARES ---------- */
-import { ReactNode } from 'react';
 
 type ActionBtnProps = {
   icon: ReactNode;
