@@ -3,7 +3,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -22,13 +22,20 @@ import { AuthContext } from '../contexts/AuthContext';
 
 export default function Login() {
   const router = useRouter();
-  const { login } = useContext(AuthContext);
+
+  // 👇 solo traemos "login"; el contexto ya hace setUser internamente
+  const { login, user } = useContext(AuthContext);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Solo para depurar: ver qué hay en el contexto cuando cambie
+  useEffect(() => {
+    console.log('🟢 AuthContext en Login cambió, user =', user);
+  }, [user]);
 
   const handleLogin = async () => {
     setErrorMsg(null);
@@ -40,25 +47,26 @@ export default function Login() {
 
     setLoading(true);
     try {
-      console.log('Login pressed');
 
-      // 👇 login debe devolver User | null en tu AuthContext
+      // login del AuthContext → devuelve User | null y hace setUser(finalUser)
       const loggedUser = await login(email.trim().toLowerCase(), password);
 
+
       if (!loggedUser) {
+        console.log('❌ LOGIN FALLÓ');
         setErrorMsg('Correo o contraseña incorrectos.');
         return;
       }
 
-      console.log('ROL:', loggedUser.rol);
 
+      // 🔁 Navegación según rol
       if (loggedUser.rol === 'pasajero') {
         router.replace('/(main)/indexPassanger');
       } else if (loggedUser.rol === 'conductor') {
         router.replace('/(main)/indexDriver');
       } else {
         // rol = 'ambos'
-        router.replace('/(main)/indexPassanger'); // ajusta a como se llame tu archivo
+        router.replace('/(main)/indexPassanger');
       }
     } catch (e) {
       console.error('❌ Error en handleLogin:', e);
@@ -172,7 +180,7 @@ export default function Login() {
                 <Pressable
                   style={styles.eyeBtn}
                   hitSlop={10}
-                  onPress={() => setSecure(v => !v)}
+                  onPress={() => setSecure((v) => !v)}
                 >
                   <Ionicons
                     name={secure ? 'eye-off-outline' : 'eye-outline'}

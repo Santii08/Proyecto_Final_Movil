@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
 import {
   Alert,
@@ -20,8 +20,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthContext } from '../contexts/AuthContext';
-import type { Coordinate } from '../types/map.types';
-import { geocodePlace } from '../utils/geocoding';
 import { supabase } from '../utils/supabase';
 
 type InputFieldProps = TextInputProps & {
@@ -84,69 +82,15 @@ export default function CreateTrip() {
   const [price, setPrice] = useState('');
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  /* ================================
-        🔄 HIDRATAR USUARIO SI VIENE NULL
-  ================================= */
-  useEffect(() => {
-    const loadUserFromSession = async () => {
-      try {
-        if (user) return; // ya hay usuario en contexto
+  // 🔹 vehículos del conductor
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 
-        const { data, error } = await supabase.auth.getUser();
-        if (error || !data.user) {
-          console.log('⚠️ No hay sesión activa en Supabase (CreateTrip)');
-          return;
-        }
-
-        const { data: profileData, error: profileError } = await supabase
-          .from('usuarios')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError || !profileData) {
-          console.warn(
-            "⚠️ No se encontró fila en 'usuarios' desde CreateTrip:",
-            profileError?.message
-          );
-
-          const fallbackUser = {
-            id: data.user.id,
-            email: data.user.email ?? '',
-            firstName: data.user.user_metadata?.first_name ?? '',
-            lastName: data.user.user_metadata?.last_name ?? '',
-            phone: data.user.user_metadata?.phone ?? '',
-            plate: data.user.user_metadata?.plate ?? '',
-            rol:
-              (data.user.user_metadata?.rol as
-                | 'pasajero'
-                | 'conductor'
-                | 'ambos') ?? 'pasajero',
-          };
-
-          setUser(fallbackUser);
-          return;
-        }
-
-        const finalUser = {
-          id: profileData.id,
-          email: profileData.email,
-          firstName: profileData.first_name,
-          lastName: profileData.last_name,
-          phone: profileData.phone,
-          plate: profileData.plate,
-          rol: profileData.rol,
-        };
-
-        setUser(finalUser);
-      } catch (err: any) {
-        console.error('❌ Error hidratando usuario en CreateTrip:', err.message);
-      }
-    };
-
-    loadUserFromSession();
-  }, [user, setUser]);
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user } = useContext(AuthContext);
 
   /* ================================
         TRAER VEHÍCULOS DEL CONDUCTOR
@@ -182,11 +126,6 @@ export default function CreateTrip() {
       return;
     }
 
-    if (user.rol !== 'conductor' && user.rol !== 'ambos') {
-      Alert.alert('Aviso', 'Solo los conductores pueden publicar viajes.');
-      return;
-    }
-
     if (!origin || !destination || !seats || !price) {
       Alert.alert('Campos incompletos', 'Completa todos los campos.');
       return;
@@ -210,58 +149,26 @@ export default function CreateTrip() {
       return;
     }
 
+    // Combinar fecha y hora
+    const departure = new Date(date);
+    departure.setHours(time.getHours(), time.getMinutes(), 0, 0);
+
+    const payload = {
+      driver_id: user.id,
+      vehicle_id: selectedVehicleId, // 👈 relacionar viaje con vehículo
+      origin,
+      destination,
+      departure_time: departure.toISOString(),
+      price: priceNumber,
+      seats_total: seatsNumber,
+      seats_available: seatsNumber,
+      status: 'publicado',
+    };
+
+    console.log('📦 Payload que se va a insertar en viajes:', payload);
+
+    setLoading(true);
     try {
-      // 1️⃣ Asegurar coordenadas (si no vienen del mapa, geocode automático)
-      let finalOrigin = originCoords;
-      let finalDest = destinationCoords;
-
-      if (!finalOrigin) {
-        finalOrigin = await geocodePlace(origin);
-        if (!finalOrigin) {
-          Alert.alert(
-            'Error',
-            'No se pudo encontrar el origen. Intenta ser más específico.'
-          );
-          return;
-        }
-        setOriginCoords(finalOrigin);
-      }
-
-      if (!finalDest) {
-        finalDest = await geocodePlace(destination);
-        if (!finalDest) {
-          Alert.alert(
-            'Error',
-            'No se pudo encontrar el destino. Intenta ser más específico.'
-          );
-          return;
-        }
-        setDestinationCoords(finalDest);
-      }
-
-      // 2️⃣ Combinar fecha y hora
-      const departure = new Date(date);
-      departure.setHours(time.getHours(), time.getMinutes(), 0, 0);
-
-      const payload = {
-        driver_id: user.id,
-        vehicle_id: selectedVehicleId,
-        origin,
-        destination,
-        departure_time: departure.toISOString(),
-        price: priceNumber,
-        seats_total: seatsNumber,
-        seats_available: seatsNumber,
-        status: 'publicado',
-        origin_lat: finalOrigin.latitude,
-        origin_lng: finalOrigin.longitude,
-        destination_lat: finalDest.latitude,
-        destination_lng: finalDest.longitude,
-      };
-
-      console.log('📦 Payload que se va a insertar en viajes:', payload);
-
-      setLoading(true);
       const { data, error } = await supabase
         .from('viajes')
         .insert(payload)
@@ -290,28 +197,6 @@ export default function CreateTrip() {
     }
   };
 
-  /* ================================
-        ABRIR MAPA ESTILO UBER
-  ================================= */
-  const openMapFor = (type: 'origin' | 'destination') => {
-    router.push({
-      pathname: '/(main)/selectLocationMap',
-      params: {
-        type,
-        origin_name: origin,
-        destination_name: destination,
-        ...(originCoords && {
-          origin_lat: originCoords.latitude.toString(),
-          origin_lng: originCoords.longitude.toString(),
-        }),
-        ...(destinationCoords && {
-          destination_lat: destinationCoords.latitude.toString(),
-          destination_lng: destinationCoords.longitude.toString(),
-        }),
-      },
-    });
-  };
-
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: '#F5F7FB' }}
@@ -330,7 +215,7 @@ export default function CreateTrip() {
               end={{ x: 1, y: 1 }}
               style={[
                 styles.header,
-                { paddingTop: 18 + insets.top },
+                { paddingTop: 18 + insets.top }
               ]}
             >
               <Pressable
@@ -621,18 +506,5 @@ const styles = StyleSheet.create({
   vehicleChipSubtitle: {
     fontSize: 12,
     color: '#6B7280',
-  },
-
-  // 🔹 botón mapa
-  mapBtn: {
-    backgroundColor: '#E8F1FF',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  mapBtnText: {
-    color: '#2F6CF4',
-    fontWeight: '700',
-    textAlign: 'center',
   },
 });

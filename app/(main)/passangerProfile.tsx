@@ -15,7 +15,7 @@ import {
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
-export default function PassengerProfile() {
+export default function PassangerProfile() {
   const router = useRouter();
   const { user, setUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
@@ -173,7 +173,7 @@ export default function PassengerProfile() {
         {/* Botón editar perfil */}
         <Pressable
           style={styles.button}
-          onPress={() => router.push("/(main)/editPassengerProfile")}
+          onPress={() => router.push("./(main)/editPassengerProfile")}
         >
           <LinearGradient
             colors={["#2F6CF4", "#00C2FF"]}

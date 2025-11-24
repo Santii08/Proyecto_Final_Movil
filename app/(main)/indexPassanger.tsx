@@ -6,31 +6,56 @@ import {
   Alert,
   FlatList,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
-/* ---------- TYPES ---------- */
+/* ---------- TIPOS PARA LA UI ---------- */
 type Trip = {
-  id: string; // uuid de la tabla viajes
-  driver: string; // nombre del conductor
+  id: string;
+  driver: string;      // nombre que mostramos
+  driverId: string;    // id del conductor en usuarios
   origin: string;
   destination: string;
-  time: string; // hora formateada
+  time: string;        // hora formateada
   price: number;
   rating: number; // por ahora mock
+};
+
+/* ---------- TIPO TAL COMO LLEGA DE SUPABASE ---------- */
+type TripFromDB = {
+  id: string;
+  driver_id: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  price: number;
+  seats_total: number;
+  seats_available: number;
+  status: string;
+  vehicle_id: string | null;
+  vehiculo?: {
+    plate?: string | null;
+    color?: string | null;
+  } | null;
+  conductor?: {
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
 };
 
 const PassengerHome: React.FC = () => {
   const [search, setSearch] = useState("");
   const { user, setUser } = useContext(AuthContext);
+  const insets = useSafeAreaInsets();
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
@@ -102,60 +127,85 @@ const PassengerHome: React.FC = () => {
   }, [user, setUser]);
 
   /* -----------------------------------------
-     🔥 Cargar viajes reales desde Supabase
+     🚗 Cargar viajes disponibles de otros conductores
   ------------------------------------------*/
   useEffect(() => {
-    const loadTrips = async () => {
+    const fetchTrips = async () => {
+      if (!user) return; // necesito saber quién es el pasajero para filtrar sus propios viajes
+
       try {
         setLoadingTrips(true);
 
-        // join con usuarios para sacar nombre del conductor
         const { data, error } = await supabase
           .from("viajes")
           .select(
-            "id, origin, destination, departure_time, price, usuarios(first_name, last_name)"
+            `
+            id,
+            driver_id,
+            origin,
+            destination,
+            departure_time,
+            price,
+            seats_total,
+            seats_available,
+            status,
+            vehicle_id,
+            vehiculo:vehiculos (
+              plate,
+              color
+            ),
+            conductor:usuarios (
+              first_name,
+              last_name
+            )
+          `
           )
-          .eq("status", "publicado");
+          .eq("status", "publicado")       // solo viajes publicados
+          .gt("seats_available", 0)        // con cupos disponibles
+          .neq("driver_id", user.id);      // 👈 excluir viajes del propio usuario
 
         if (error) {
           console.error("❌ Error cargando viajes:", error.message);
-          setTrips([]);
           return;
         }
 
-        const safeData = (data ?? []) as any[];
+        const mapped: Trip[] =
+          (data as TripFromDB[]).map((t) => {
+            // nombre del conductor: primero intento con usuarios, si no, placa
+            const nombreConductor =
+              t.conductor?.first_name || t.conductor?.last_name
+                ? `${t.conductor?.first_name ?? ""} ${
+                    t.conductor?.last_name ?? ""
+                  }`.trim()
+                : t.vehiculo?.plate
+                ? `Placa ${t.vehiculo.plate}`
+                : "Conductor UniRide";
 
-        const mapped: Trip[] = safeData.map((v) => {
-          const conductor =
-            v.usuarios && v.usuarios.first_name
-              ? `${v.usuarios.first_name} ${v.usuarios.last_name ?? ""}`.trim()
-              : "Conductor";
-
-          return {
-            id: v.id, // uuid real
-            driver: conductor,
-            origin: v.origin,
-            destination: v.destination,
-            time: new Date(v.departure_time).toLocaleTimeString("es-CO", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            price: v.price,
-            rating: 4.9, // por ahora mock fijo
-          };
-        });
+            return {
+              id: t.id,
+              driverId: t.driver_id,
+              driver: nombreConductor,
+              origin: t.origin,
+              destination: t.destination,
+              time: new Date(t.departure_time).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              price: t.price,
+              rating: 5.0, // de momento fijo; luego puedes calcularlo de otra tabla
+            };
+          }) ?? [];
 
         setTrips(mapped);
-      } catch (err) {
-        console.error("❌ Excepción cargando viajes:", err);
-        setTrips([]);
+      } catch (e) {
+        console.error("❌ Excepción al cargar viajes:", e);
       } finally {
         setLoadingTrips(false);
       }
     };
 
-    loadTrips();
-  }, []);
+    fetchTrips();
+  }, [user]);
 
   /* -----------------------------------------
      FILTRO DE VIAJES
@@ -177,6 +227,15 @@ const PassengerHome: React.FC = () => {
       return;
     }
 
+    // por si acaso, evitar que un conductor reserve su propio viaje
+    if (trip.driverId === user.id) {
+      Alert.alert(
+        "Aviso",
+        "No puedes reservar un viaje que tú mismo ofreces como conductor."
+      );
+      return;
+    }
+
     try {
       // Evitar reservas repetidas
       const { data: existing, error: existingError } = await supabase
@@ -187,10 +246,7 @@ const PassengerHome: React.FC = () => {
         .maybeSingle();
 
       if (existingError) {
-        console.error(
-          "❌ Error consultando reservas existentes:",
-          existingError.message
-        );
+        console.error("❌ Error comprobando reserva existente:", existingError);
       }
 
       if (existing) {
@@ -234,13 +290,19 @@ const PassengerHome: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
+    <SafeAreaView
+          style={{ flex: 1, backgroundColor: '#F5F7FB' }}
+          edges={['left', 'right', 'bottom']}
+        >
       <ScrollView contentContainerStyle={styles.scroll}>
         <LinearGradient
           colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[
+            styles.header,
+            { paddingTop: 18 + insets.top },
+          ]}
         >
           <View style={styles.headerTop}>
             <View>
@@ -288,7 +350,9 @@ const PassengerHome: React.FC = () => {
           />
 
           <ActionButton
-            icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
+            icon={
+              <Ionicons name="headset-outline" size={22} color="#2F6CF4" />
+            }
             label="Soporte"
             onPress={() => router.push("/(main)/support")}
           />
@@ -316,7 +380,8 @@ const PassengerHome: React.FC = () => {
                         {item.origin} → {item.destination}
                       </Text>
                       <Text style={styles.tripMeta}>
-                        {item.time} | ${item.price.toLocaleString("es-CO")}
+                        {item.time} | $
+                        {item.price.toLocaleString("es-CO")}
                       </Text>
                     </View>
                   </View>
@@ -381,7 +446,6 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 25,
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,
