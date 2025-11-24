@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,136 @@ import {
 } from "react-native";
 import UniRideLogo from "../../components/UniRideLogo";
 
+/* ---------- TIPOS PARA GEMINI ---------- */
+type GeminiCandidate = {
+  content: { parts: { text: string }[] };
+};
+
+type GeminiResponse = {
+  candidates?: GeminiCandidate[];
+  // Por si viene un error estándar de Google
+  error?: {
+    message?: string;
+    code?: number;
+    status?: string;
+  };
+};
+
 export default function SupportScreen() {
+  const [reportText, setReportText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSendReport = async () => {
+    if (!reportText.trim()) {
+      setError("Por favor escribe qué ocurrió antes de enviar el reporte.");
+      setAiAnswer(null);
+      return;
+    }
+
+    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+    if (!apiKey) {
+      setError("No se encontró la clave de Gemini. Revisa EXPO_PUBLIC_GEMINI_API_KEY.");
+      setAiAnswer(null);
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+    setAiAnswer(null);
+
+    const body = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `
+Eres un agente de soporte de la app de viajes compartidos UniRide.
+
+El usuario describe este problema:
+"""${reportText.trim()}"""
+
+Devuelve SOLO un JSON con este formato:
+{
+  "respuesta": "mensaje breve, empático y claro en español, máximo 4 líneas, explicando qué puede hacer el usuario o cómo lo ayudará el equipo de soporte"
+}
+
+No agregues nada fuera del JSON.
+              `.trim(),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            respuesta: { type: "STRING" },
+          },
+          required: ["respuesta"],
+        },
+      },
+    };
+
+    try {
+      const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        {
+          method: "POST",
+          headers: {
+            "x-goog-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+
+      const json: GeminiResponse = await response.json();
+      console.log("Gemini raw response:", JSON.stringify(json, null, 2));
+
+      // Si la API devolvió un error
+      if (json.error) {
+        throw new Error(json.error.message || "Error en la API de Gemini");
+      }
+
+      const candidate = json.candidates?.[0];
+      const partTexts =
+        candidate?.content?.parts
+          ?.map((p) => p.text)
+          .filter(Boolean) ?? [];
+
+      const text = partTexts.join("").trim();
+      if (!text) {
+        throw new Error("No se recibió texto de la IA");
+      }
+
+      // Por si viene con prefijo "json"
+      const cleaned = text.replace(/^json\n?/i, "").trim();
+
+      let respuesta: string;
+      try {
+        const parsed = JSON.parse(cleaned) as { respuesta?: string };
+        if (!parsed.respuesta) {
+          throw new Error("JSON sin campo 'respuesta'");
+        }
+        respuesta = parsed.respuesta;
+      } catch {
+        // Si no es JSON válido, al menos mostramos el texto que llegó
+        respuesta = cleaned;
+      }
+
+      setAiAnswer(respuesta);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message ?? "Error inesperado al consultar la IA");
+      setAiAnswer(null);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -75,12 +205,42 @@ export default function SupportScreen() {
             style={styles.textArea}
             multiline
             numberOfLines={5}
+            value={reportText}
+            onChangeText={setReportText}
           />
 
-          <Pressable style={styles.submitButton}>
-            <Text style={styles.submitText}>Enviar reporte</Text>
-            <Ionicons name="send-outline" size={18} color="#fff" />
+          <Pressable
+            style={styles.submitButton}
+            onPress={handleSendReport}
+            disabled={isSending}
+          >
+            {isSending ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" />
+                <Text style={styles.submitText}>Enviando...</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.submitText}>Enviar reporte</Text>
+                <Ionicons name="send-outline" size={18} color="#fff" />
+              </>
+            )}
           </Pressable>
+
+          {/* Mensaje de error */}
+          {error && (
+            <Text style={{ color: "#F97316", marginTop: 10 }}>
+              {error}
+            </Text>
+          )}
+
+          {/* Respuesta IA */}
+          {aiAnswer && (
+            <View style={[styles.aiCard, { marginTop: 18 }]}>
+              <Text style={styles.aiTitle}>Respuesta rápida de UniRide IA</Text>
+              <Text style={styles.aiText}>{aiAnswer}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -226,5 +386,21 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
+  },
+
+  aiCard: {
+    backgroundColor: "#FFFFFF",
+    padding: 14,
+    borderRadius: 12,
+  },
+  aiTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 4,
+  },
+  aiText: {
+    fontSize: 14,
+    color: "#4B5563",
   },
 });
