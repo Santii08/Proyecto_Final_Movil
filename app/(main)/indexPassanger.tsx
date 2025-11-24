@@ -19,58 +19,29 @@ import { supabase } from "../utils/supabase";
 
 /* ---------- TYPES ---------- */
 type Trip = {
-  id: string;
-  driver: string;
+  id: string; // uuid de la tabla viajes
+  driver: string; // nombre del conductor
   origin: string;
   destination: string;
-  time: string;
+  time: string; // hora formateada
   price: number;
-  rating: number;
+  rating: number; // por ahora mock
 };
-
-/* ---------- MOCK DATA ---------- */
-const mockTrips: Trip[] = [
-  {
-    id: "1",
-    driver: "Carlos Pérez",
-    origin: "Universidad de La Sabana",
-    destination: "Portal Norte",
-    time: "13:45",
-    price: 7000,
-    rating: 4.9,
-  },
-  {
-    id: "2",
-    driver: "María López",
-    origin: "Chía Centro",
-    destination: "Calle 100",
-    time: "14:10",
-    price: 9000,
-    rating: 4.8,
-  },
-  {
-    id: "3",
-    driver: "Andrés Gómez",
-    origin: "La Caro",
-    destination: "Unicentro",
-    time: "15:00",
-    price: 8500,
-    rating: 5.0,
-  },
-];
 
 const PassengerHome: React.FC = () => {
   const [search, setSearch] = useState("");
   const { user, setUser } = useContext(AuthContext);
 
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+
   /* -----------------------------------------
      🔄 Hidratar usuario si viene null 
-     (por ejemplo si se entra directo a esta pantalla)
   ------------------------------------------*/
   useEffect(() => {
     const loadUserFromSession = async () => {
       try {
-        if (user) return; // ya hay usuario en contexto
+        if (user) return;
 
         const { data, error } = await supabase.auth.getUser();
         if (error || !data.user) {
@@ -78,7 +49,6 @@ const PassengerHome: React.FC = () => {
           return;
         }
 
-        // Buscar perfil en tabla "usuarios"
         const { data: profileData, error: profileError } = await supabase
           .from("usuarios")
           .select("*")
@@ -91,7 +61,6 @@ const PassengerHome: React.FC = () => {
             profileError?.message
           );
 
-          // fallback usando metadata de auth
           const fallbackUser = {
             id: data.user.id,
             email: data.user.email ?? "",
@@ -99,7 +68,11 @@ const PassengerHome: React.FC = () => {
             lastName: data.user.user_metadata?.last_name ?? "",
             phone: data.user.user_metadata?.phone ?? "",
             plate: data.user.user_metadata?.plate ?? "",
-            rol: (data.user.user_metadata?.rol as "pasajero" | "conductor" | "ambos") ?? "pasajero",
+            rol:
+              (data.user.user_metadata?.rol as
+                | "pasajero"
+                | "conductor"
+                | "ambos") ?? "pasajero",
           };
 
           setUser(fallbackUser);
@@ -118,7 +91,10 @@ const PassengerHome: React.FC = () => {
 
         setUser(finalUser);
       } catch (err: any) {
-        console.error("❌ Error hidratando usuario en IndexPassenger:", err.message);
+        console.error(
+          "❌ Error hidratando usuario en IndexPassenger:",
+          err.message
+        );
       }
     };
 
@@ -126,15 +102,70 @@ const PassengerHome: React.FC = () => {
   }, [user, setUser]);
 
   /* -----------------------------------------
+     🔥 Cargar viajes reales desde Supabase
+  ------------------------------------------*/
+  useEffect(() => {
+    const loadTrips = async () => {
+      try {
+        setLoadingTrips(true);
+
+        // join con usuarios para sacar nombre del conductor
+        const { data, error } = await supabase
+          .from("viajes")
+          .select(
+            "id, origin, destination, departure_time, price, usuarios(first_name, last_name)"
+          )
+          .eq("status", "publicado");
+
+        if (error) {
+          console.error("❌ Error cargando viajes:", error.message);
+          setTrips([]);
+          return;
+        }
+
+        const safeData = (data ?? []) as any[];
+
+        const mapped: Trip[] = safeData.map((v) => {
+          const conductor =
+            v.usuarios && v.usuarios.first_name
+              ? `${v.usuarios.first_name} ${v.usuarios.last_name ?? ""}`.trim()
+              : "Conductor";
+
+          return {
+            id: v.id, // uuid real
+            driver: conductor,
+            origin: v.origin,
+            destination: v.destination,
+            time: new Date(v.departure_time).toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            price: v.price,
+            rating: 4.9, // por ahora mock fijo
+          };
+        });
+
+        setTrips(mapped);
+      } catch (err) {
+        console.error("❌ Excepción cargando viajes:", err);
+        setTrips([]);
+      } finally {
+        setLoadingTrips(false);
+      }
+    };
+
+    loadTrips();
+  }, []);
+
+  /* -----------------------------------------
      FILTRO DE VIAJES
   ------------------------------------------*/
-  const filteredTrips = mockTrips.filter(
+  const filteredTrips = trips.filter(
     (t) =>
       t.origin.toLowerCase().includes(search.toLowerCase()) ||
       t.destination.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Nombre del usuario logueado (si no, UniRider)
   const firstName = user?.firstName?.trim() || "UniRider";
 
   /* ------------------------------------------------
@@ -148,12 +179,19 @@ const PassengerHome: React.FC = () => {
 
     try {
       // Evitar reservas repetidas
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("reservas")
         .select("*")
-        .eq("trip_id", trip.id)
-        .eq("passenger_id", user.id)
+        .eq("trip_id", trip.id) // ahora es uuid válido
+        .eq("passenger_id", user.id) // uuid de usuarios
         .maybeSingle();
+
+      if (existingError) {
+        console.error(
+          "❌ Error consultando reservas existentes:",
+          existingError.message
+        );
+      }
 
       if (existing) {
         Alert.alert("Aviso", "Ya tienes una reserva para este viaje.");
@@ -181,8 +219,6 @@ const PassengerHome: React.FC = () => {
       Alert.alert("Error", "Ocurrió un problema al reservar.");
     }
   };
-
-  /* ------------------------------------------------ */
 
   const handleProfilePress = () => {
     if (!user) {
@@ -262,7 +298,9 @@ const PassengerHome: React.FC = () => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Viajes disponibles</Text>
 
-          {filteredTrips.length === 0 ? (
+          {loadingTrips ? (
+            <Text style={styles.noTrips}>Cargando viajes...</Text>
+          ) : filteredTrips.length === 0 ? (
             <Text style={styles.noTrips}>No se encontraron viajes</Text>
           ) : (
             <FlatList
@@ -294,9 +332,18 @@ const PassengerHome: React.FC = () => {
 
                     <Pressable
                       style={styles.reserveBtn}
-                      onPress={() => reservarViaje(item)}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(main)/mapScreen",
+                          params: {
+                            trip_id: item.id,
+                            destination_lat: item.destination_lat,
+                            destination_lng: item.destination_lng,
+                          },
+                        })
+                      }
                     >
-                      <Text style={styles.reserveText}>Reservar</Text>
+                      <Text style={styles.reserveText}>Ver ruta</Text>
                     </Pressable>
                   </View>
                 </View>
