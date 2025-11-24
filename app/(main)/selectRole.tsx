@@ -3,11 +3,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useContext, useEffect } from 'react';
 import {
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    View,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { AuthContext } from '../contexts/AuthContext';
 
@@ -26,7 +26,7 @@ const SelectRoleScreen: React.FC = () => {
     return null;
   }
 
-  const firstName = user.firstName || 'UniRider';
+  const firstName = (user as any).firstName || 'UniRider';
 
   const handlePassenger = () => {
     router.replace('/(main)/indexPassanger');
@@ -84,6 +84,7 @@ const SelectRoleScreen: React.FC = () => {
   );
 };
 
+// 👇 ESTE es el único export default
 export default SelectRoleScreen;
 
 const styles = StyleSheet.create({

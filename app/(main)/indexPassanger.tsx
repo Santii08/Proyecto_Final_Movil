@@ -25,7 +25,7 @@ type Trip = {
   destination: string;
   time: string;        // hora formateada
   price: number;
-  rating: number;
+  rating: number; // por ahora mock
 };
 
 /* ---------- TIPO TAL COMO LLEGA DE SUPABASE ---------- */
@@ -57,14 +57,16 @@ const PassengerHome: React.FC = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
 
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+
   /* -----------------------------------------
      🔄 Hidratar usuario si viene null 
-     (por ejemplo si se entra directo a esta pantalla)
   ------------------------------------------*/
   useEffect(() => {
     const loadUserFromSession = async () => {
       try {
-        if (user) return; // ya hay usuario en contexto
+        if (user) return;
 
         const { data, error } = await supabase.auth.getUser();
         if (error || !data.user) {
@@ -72,7 +74,6 @@ const PassengerHome: React.FC = () => {
           return;
         }
 
-        // Buscar perfil en tabla "usuarios"
         const { data: profileData, error: profileError } = await supabase
           .from("usuarios")
           .select("*")
@@ -85,7 +86,6 @@ const PassengerHome: React.FC = () => {
             profileError?.message
           );
 
-          // fallback usando metadata de auth
           const fallbackUser = {
             id: data.user.id,
             email: data.user.email ?? "",
@@ -216,7 +216,6 @@ const PassengerHome: React.FC = () => {
       t.destination.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Nombre del usuario logueado (si no, UniRider)
   const firstName = user?.firstName?.trim() || "UniRider";
 
   /* ------------------------------------------------
@@ -242,8 +241,8 @@ const PassengerHome: React.FC = () => {
       const { data: existing, error: existingError } = await supabase
         .from("reservas")
         .select("*")
-        .eq("trip_id", trip.id)
-        .eq("passenger_id", user.id)
+        .eq("trip_id", trip.id) // ahora es uuid válido
+        .eq("passenger_id", user.id) // uuid de usuarios
         .maybeSingle();
 
       if (existingError) {
@@ -276,8 +275,6 @@ const PassengerHome: React.FC = () => {
       Alert.alert("Error", "Ocurrió un problema al reservar.");
     }
   };
-
-  /* ------------------------------------------------ */
 
   const handleProfilePress = () => {
     if (!user) {
@@ -400,9 +397,18 @@ const PassengerHome: React.FC = () => {
 
                     <Pressable
                       style={styles.reserveBtn}
-                      onPress={() => reservarViaje(item)}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(main)/mapScreen",
+                          params: {
+                            trip_id: item.id,
+                            destination_lat: item.destination_lat,
+                            destination_lng: item.destination_lng,
+                          },
+                        })
+                      }
                     >
-                      <Text style={styles.reserveText}>Reservar</Text>
+                      <Text style={styles.reserveText}>Ver ruta</Text>
                     </Pressable>
                   </View>
                 </View>

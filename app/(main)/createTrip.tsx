@@ -37,8 +37,45 @@ type Vehicle = {
 };
 
 export default function CreateTrip() {
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const { user, setUser } = useContext(AuthContext);
+
+  const [loading, setLoading] = useState(false);
+
+  // 🔹 vehículos del conductor
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+
+  // Nombre origen/destino si vienen desde el mapa
+  const [origin, setOrigin] = useState<string>(
+    (params.origin_name as string) || ''
+  );
+  const [destination, setDestination] = useState<string>(
+    (params.destination_name as string) || ''
+  );
+
+  // Coordenadas si vienen desde el mapa
+  const [originCoords, setOriginCoords] = useState<Coordinate | null>(
+    params.origin_lat && params.origin_lng
+      ? {
+          latitude: Number(params.origin_lat),
+          longitude: Number(params.origin_lng),
+        }
+      : null
+  );
+
+  const [destinationCoords, setDestinationCoords] = useState<Coordinate | null>(
+    params.destination_lat && params.destination_lng
+      ? {
+          latitude: Number(params.destination_lat),
+          longitude: Number(params.destination_lng),
+        }
+      : null
+  );
+
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
   const [seats, setSeats] = useState('');
@@ -204,12 +241,29 @@ export default function CreateTrip() {
                 value={origin}
                 onChangeText={setOrigin}
               />
+
+              <Pressable
+                style={styles.mapBtn}
+                onPress={() => openMapFor('origin')}
+              >
+                <Text style={styles.mapBtnText}>Elegir origen en el mapa</Text>
+              </Pressable>
+
               <InputField
                 icon="flag-outline"
                 placeholder="Destino"
                 value={destination}
                 onChangeText={setDestination}
               />
+
+              <Pressable
+                style={styles.mapBtn}
+                onPress={() => openMapFor('destination')}
+              >
+                <Text style={styles.mapBtnText}>
+                  Elegir destino en el mapa
+                </Text>
+              </Pressable>
 
               {/* Fecha */}
               <Pressable style={styles.inputRow} onPress={() => setShowDate(true)}>
