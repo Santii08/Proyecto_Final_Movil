@@ -12,20 +12,26 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
 /* ---------- TIPOS PARA LA UI ---------- */
 type Trip = {
   id: string;
-  driver: string;      // nombre que mostramos
-  driverId: string;    // id del conductor en usuarios
+  driver: string; // nombre que mostramos
+  driverId: string; // id del conductor en usuarios
   origin: string;
   destination: string;
-  time: string;        // hora formateada
+  time: string; // hora formateada
   price: number;
   rating: number; // por ahora mock
+
+  // 👇 coordenadas
+  origin_lat: number | null;
+  origin_lng: number | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
 };
 
 /* ---------- TIPO TAL COMO LLEGA DE SUPABASE ---------- */
@@ -40,6 +46,12 @@ type TripFromDB = {
   seats_available: number;
   status: string;
   vehicle_id: string | null;
+
+  origin_lat: number | null;
+  origin_lng: number | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
+
   vehiculo?: {
     plate?: string | null;
     color?: string | null;
@@ -57,11 +69,8 @@ const PassengerHome: React.FC = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
 
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loadingTrips, setLoadingTrips] = useState(false);
-
   /* -----------------------------------------
-     🔄 Hidratar usuario si viene null 
+     🔄 Hidratar usuario si viene null
   ------------------------------------------*/
   useEffect(() => {
     const loadUserFromSession = async () => {
@@ -150,6 +159,10 @@ const PassengerHome: React.FC = () => {
             seats_available,
             status,
             vehicle_id,
+            origin_lat,
+            origin_lng,
+            destination_lat,
+            destination_lng,
             vehiculo:vehiculos (
               plate,
               color
@@ -160,9 +173,9 @@ const PassengerHome: React.FC = () => {
             )
           `
           )
-          .eq("status", "publicado")       // solo viajes publicados
-          .gt("seats_available", 0)        // con cupos disponibles
-          .neq("driver_id", user.id);      // 👈 excluir viajes del propio usuario
+          .eq("status", "publicado") // solo viajes publicados
+          .gt("seats_available", 0) // con cupos disponibles
+          .neq("driver_id", user.id); // 👈 excluir viajes del propio usuario
 
         if (error) {
           console.error("❌ Error cargando viajes:", error.message);
@@ -171,7 +184,6 @@ const PassengerHome: React.FC = () => {
 
         const mapped: Trip[] =
           (data as TripFromDB[]).map((t) => {
-            // nombre del conductor: primero intento con usuarios, si no, placa
             const nombreConductor =
               t.conductor?.first_name || t.conductor?.last_name
                 ? `${t.conductor?.first_name ?? ""} ${
@@ -193,6 +205,10 @@ const PassengerHome: React.FC = () => {
               }),
               price: t.price,
               rating: 5.0, // de momento fijo; luego puedes calcularlo de otra tabla
+              origin_lat: t.origin_lat,
+              origin_lng: t.origin_lng,
+              destination_lat: t.destination_lat,
+              destination_lng: t.destination_lng,
             };
           }) ?? [];
 
@@ -227,7 +243,6 @@ const PassengerHome: React.FC = () => {
       return;
     }
 
-    // por si acaso, evitar que un conductor reserve su propio viaje
     if (trip.driverId === user.id) {
       Alert.alert(
         "Aviso",
@@ -237,12 +252,11 @@ const PassengerHome: React.FC = () => {
     }
 
     try {
-      // Evitar reservas repetidas
       const { data: existing, error: existingError } = await supabase
         .from("reservas")
         .select("*")
-        .eq("trip_id", trip.id) // ahora es uuid válido
-        .eq("passenger_id", user.id) // uuid de usuarios
+        .eq("trip_id", trip.id)
+        .eq("passenger_id", user.id)
         .maybeSingle();
 
       if (existingError) {
@@ -254,7 +268,6 @@ const PassengerHome: React.FC = () => {
         return;
       }
 
-      // Crear la reserva
       const { error } = await supabase.from("reservas").insert({
         trip_id: trip.id,
         passenger_id: user.id,
@@ -291,18 +304,15 @@ const PassengerHome: React.FC = () => {
 
   return (
     <SafeAreaView
-          style={{ flex: 1, backgroundColor: '#F5F7FB' }}
-          edges={['left', 'right', 'bottom']}
-        >
+      style={{ flex: 1, backgroundColor: "#F5F7FB" }}
+      edges={["left", "right", "bottom"]}
+    >
       <ScrollView contentContainerStyle={styles.scroll}>
         <LinearGradient
           colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[
-            styles.header,
-            { paddingTop: 18 + insets.top },
-          ]}
+          style={[styles.header, { paddingTop: 18 + insets.top }]}
         >
           <View style={styles.headerTop}>
             <View>
@@ -380,8 +390,7 @@ const PassengerHome: React.FC = () => {
                         {item.origin} → {item.destination}
                       </Text>
                       <Text style={styles.tripMeta}>
-                        {item.time} | $
-                        {item.price.toLocaleString("es-CO")}
+                        {item.time} | ${item.price.toLocaleString("es-CO")}
                       </Text>
                     </View>
                   </View>
@@ -399,11 +408,11 @@ const PassengerHome: React.FC = () => {
                       style={styles.reserveBtn}
                       onPress={() =>
                         router.push({
-                          pathname: "/(main)/mapScreen",
+                          pathname: "./(main)/mapScreen",
                           params: {
                             trip_id: item.id,
-                            destination_lat: item.destination_lat,
-                            destination_lng: item.destination_lng,
+                            destination_lat: String(item.destination_lat),
+                            destination_lng: String(item.destination_lng),
                           },
                         })
                       }
@@ -430,11 +439,7 @@ type ActionButtonProps = {
   onPress?: () => void;
 };
 
-const ActionButton: React.FC<ActionButtonProps> = ({
-  icon,
-  label,
-  onPress,
-}) => (
+const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onPress }) => (
   <Pressable onPress={onPress} style={styles.actionBtn}>
     <View style={styles.actionIcon}>{icon}</View>
     <Text style={styles.actionLabel}>{label}</Text>
