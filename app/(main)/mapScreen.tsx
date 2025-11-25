@@ -4,20 +4,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import MapView, {
-    Marker,
-    Polyline,
-    PROVIDER_GOOGLE,
-    Region,
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
+  Region,
 } from "react-native-maps";
 
 import { GEOAPIFY_API_KEY } from "../config/geoapify";
