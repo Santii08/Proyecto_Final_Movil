@@ -257,12 +257,11 @@ const PassengerHome: React.FC = () => {
           (data as TripFromDB[]).map((t) => {
             const nombreConductor =
               t.conductor?.first_name || t.conductor?.last_name
-                ? `${t.conductor?.first_name ?? ""} ${
-                    t.conductor?.last_name ?? ""
+                ? `${t.conductor?.first_name ?? ""} ${t.conductor?.last_name ?? ""
                   }`.trim()
                 : t.vehiculo?.plate
-                ? `Placa ${t.vehiculo.plate}`
-                : "Conductor UniRide";
+                  ? `Placa ${t.vehiculo.plate}`
+                  : "Conductor UniRide";
 
             return {
               id: t.id,
@@ -430,12 +429,20 @@ const PassengerHome: React.FC = () => {
             onPress={() => router.push("/(main)/myReservation")}
           />
 
+          {/* 🔹 Nuevo botón: leer QR de llegada */}
+          <ActionButton
+            icon={<Ionicons name="qr-code-outline" size={22} color="#2F6CF4" />}
+            label="Leer QR"
+            onPress={() => router.push("/(main)/confirmArrival")}
+          />
+
           <ActionButton
             icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
             label="Soporte"
             onPress={() => router.push("/(main)/support")}
           />
         </View>
+
 
         {/* Lista de viajes */}
         <View style={styles.card}>

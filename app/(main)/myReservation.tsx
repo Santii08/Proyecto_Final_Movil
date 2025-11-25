@@ -31,7 +31,7 @@ type ReservationWithTrip = {
   driver_name: string;
 };
 
-/* ---------- HELPERS FECHAS (mismo estilo que indexDriver) ---------- */
+/* ---------- HELPERS FECHAS ---------- */
 const startOfWeek = (d: Date) => {
   const tmp = new Date(d);
   const day = tmp.getDay(); // 0 = domingo
@@ -69,6 +69,37 @@ const formatTime = (iso: string) => {
     minute: "2-digit",
     hour12: false,
   });
+};
+
+/* ---------- TEXTO “FALTA X TIEMPO PARA EL VIAJE” ---------- */
+const getTimeToDepartureLabel = (departureIso: string): string => {
+  const now = new Date();
+  const dep = new Date(departureIso);
+
+  const diffMs = dep.getTime() - now.getTime();
+  const diffMin = Math.round(diffMs / 60000);
+
+  if (diffMin > 60) {
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    if (mins === 0) return `Faltan ${hours} h para tu viaje`;
+    return `Faltan ${hours} h ${mins} min para tu viaje`;
+  }
+
+  if (diffMin > 0) {
+    return `Faltan ${diffMin} min para tu viaje`;
+  }
+
+  if (diffMin >= -15) {
+    return "Tu viaje es ahora mismo";
+  }
+
+  const atras = Math.abs(diffMin);
+  if (atras < 60) {
+    return `Tu viaje fue hace ${atras} min`;
+  }
+  const horasAtras = Math.floor(atras / 60);
+  return `Tu viaje fue hace ${horasAtras} h`;
 };
 
 /* ---------- COMPONENTE PRINCIPAL ---------- */
@@ -145,21 +176,21 @@ export default function MyReservations() {
       const rows = (data ?? []) as unknown as RowFromDb[];
 
       const mapped: ReservationWithTrip[] = rows
-        .filter((r) => r.viaje !== null) // descartar reservas a viajes borrados
+        .filter((r) => r.viaje !== null)
         .map((r) => {
           const v = r.viaje!;
           const driverName =
-            (v.conductor?.first_name || v.conductor?.last_name) ?
-              `${v.conductor?.first_name ?? ""} ${
-                v.conductor?.last_name ?? ""
-              }`.trim() :
-              "Conductor UniRide";
+            (v.conductor?.first_name || v.conductor?.last_name)
+              ? `${v.conductor?.first_name ?? ""} ${
+                  v.conductor?.last_name ?? ""
+                }`.trim()
+              : "Conductor UniRide";
 
           return {
             reserva_id: r.id,
             trip_id: r.trip_id,
             created_at: r.created_at,
-            reserva_status: r.status,
+            reserva_status: r.status, // 👈 guardamos el status tal cual
             origin: v.origin,
             destination: v.destination,
             departure_time: v.departure_time,
@@ -185,31 +216,55 @@ export default function MyReservations() {
     }
   };
 
-  /* ---------- FILTRADO TIPO indexDriver (Hoy / Semana / Recientes) ---------- */
+  /* ---------- FILTRADO: SOLO FECHAS, NO STATUS ---------- */
   const filtered = useMemo(() => {
     const now = new Date();
-    const weekStart = startOfWeek(now);
-    const weekEnd = endOfWeek(now);
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const weekStart = startOfWeek(new Date());
+    const weekEnd = endOfWeek(new Date());
 
-    // Solo consideramos viajes futuros o de hoy
-    let base = reservas.filter((r) => {
-      const d = new Date(r.departure_time);
-      return d >= new Date(now.setHours(0, 0, 0, 0)); // desde hoy en adelante
-    });
+    let base = [...reservas];
 
     if (tripFilter === "today") {
-      base = base.filter((r) => isSameDay(new Date(r.departure_time), now));
+      base = base.filter((r) =>
+        isSameDay(new Date(r.departure_time), now)
+      );
     } else if (tripFilter === "week") {
       base = base.filter((r) => {
         const d = new Date(r.departure_time);
         return d >= weekStart && d <= weekEnd;
       });
     } else {
-      // recent: no filtro adicional, solo ordenados como arriba
+      // "recent": por ejemplo, solo los que salgan desde hoy hacia adelante
+      base = base.filter((r) => {
+        const d = new Date(r.departure_time);
+        return d >= todayStart;
+      });
     }
 
     return base;
   }, [reservas, tripFilter]);
+
+  // Viaje más próximo FUTURO para marcarlo como “Próximo viaje”
+  const nextReservationId = useMemo(() => {
+    const now = new Date();
+    const futuros = reservas
+      .filter((r) => new Date(r.departure_time) >= now)
+      .sort(
+        (a, b) =>
+          new Date(a.departure_time).getTime() -
+          new Date(b.departure_time).getTime()
+      );
+    return futuros.length > 0 ? futuros[0].reserva_id : null;
+  }, [reservas]);
 
   /* ---------- UI ---------- */
   return (
@@ -225,7 +280,11 @@ export default function MyReservations() {
         <View style={styles.filterRow}>
           {(["today", "week", "recent"] as FilterType[]).map((f) => {
             const label =
-              f === "today" ? "Hoy" : f === "week" ? "Esta semana" : "Recientes";
+              f === "today"
+                ? "Hoy"
+                : f === "week"
+                ? "Esta semana"
+                : "Próximos";
             const active = tripFilter === f;
             return (
               <Pressable
@@ -263,7 +322,7 @@ export default function MyReservations() {
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={{ color: "#6B7280" }}>
+          <Text style={{ color: "#6B7280", textAlign: "center" }}>
             No tienes reservas para este filtro.
           </Text>
         </View>
@@ -272,30 +331,65 @@ export default function MyReservations() {
           data={filtered}
           keyExtractor={(item) => item.reserva_id}
           contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.tripText}>
-                {item.origin} → {item.destination}
-              </Text>
+          renderItem={({ item }) => {
+            const isNext = item.reserva_id === nextReservationId;
+            const timeLabel = getTimeToDepartureLabel(item.departure_time);
 
-              <Text style={styles.driver}>
-                Conductor: {item.driver_name}
-              </Text>
+            // Pequeño badge para el estado (pending, accepted, confirmada, etc.)
+            const statusColor =
+              item.reserva_status === "confirmada"
+                ? "#16A34A"
+                : item.reserva_status === "accepted"
+                ? "#2563EB"
+                : "#F59E0B";
 
-              <Text style={styles.time}>
-                Salida: {formatDate(item.departure_time)} ·{" "}
-                {formatTime(item.departure_time)}
-              </Text>
+            return (
+              <View style={[styles.card, isNext && styles.cardNext]}>
+                <View style={styles.cardHeaderRow}>
+                  {isNext && (
+                    <View style={styles.badgeNext}>
+                      <Text style={styles.badgeNextText}>Próximo viaje</Text>
+                    </View>
+                  )}
 
-              <Text style={styles.price}>
-                Precio: ${item.price.toLocaleString("es-CO")} / pasajero
-              </Text>
+                  <View style={styles.statusBadge}>
+                    <View
+                      style={[
+                        styles.statusDot,
+                        { backgroundColor: statusColor },
+                      ]}
+                    />
+                    <Text style={styles.statusText}>
+                      {item.reserva_status}
+                    </Text>
+                  </View>
+                </View>
 
-              <Text style={styles.date}>
-                Reservado el: {item.created_at.substring(0, 10)}
-              </Text>
-            </View>
-          )}
+                <Text style={styles.tripText}>
+                  {item.origin} → {item.destination}
+                </Text>
+
+                <Text style={styles.driver}>
+                  Conductor: {item.driver_name}
+                </Text>
+
+                <Text style={styles.time}>
+                  Salida: {formatDate(item.departure_time)} ·{" "}
+                  {formatTime(item.departure_time)}
+                </Text>
+
+                <Text style={styles.timeToDeparture}>{timeLabel}</Text>
+
+                <Text style={styles.price}>
+                  Precio: ${item.price.toLocaleString("es-CO")} / pasajero
+                </Text>
+
+                <Text style={styles.date}>
+                  Reservado el: {item.created_at.substring(0, 10)}
+                </Text>
+              </View>
+            );
+          }}
         />
       )}
     </SafeAreaView>
@@ -362,9 +456,51 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
+  cardNext: {
+    borderWidth: 1.5,
+    borderColor: "#2563EB",
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  badgeNext: {
+    alignSelf: "flex-start",
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  badgeNextText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    marginRight: 4,
+  },
+  statusText: {
+    fontSize: 11,
+    color: "#374151",
+    textTransform: "capitalize",
+  },
   tripText: { fontSize: 17, fontWeight: "700", color: "#111827" },
   driver: { marginTop: 6, color: "#1E3A8A", fontWeight: "600" },
   time: { color: "#6B7280", marginTop: 4 },
+  timeToDeparture: { color: "#111827", marginTop: 4, fontWeight: "600" },
   price: { color: "#047857", marginTop: 4, fontWeight: "600" },
   date: { marginTop: 6, color: "#4B5563", fontSize: 13 },
 });

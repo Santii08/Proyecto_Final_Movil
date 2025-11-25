@@ -3,109 +3,161 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
-type Reservation = {
-  id: string;
+/* ---------- TIPOS ---------- */
+type HistoryItem = {
+  reserva_id: string;
   trip_id: string;
   created_at: string;
-  passenger_id: string;
-};
+  status: string;
 
-type Trip = {
-  id: string;
-  driver: string;
   origin: string;
   destination: string;
-  time: string;
+  departure_time: string;
   price: number;
+  driver_name: string;
+};
+
+/* ---------- HELPERS FECHA/HORA ---------- */
+const formatDate = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatTime = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("es-CO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 };
 
 export default function HistoryReservations() {
   const { user } = useContext(AuthContext);
-  const [reservas, setReservas] = useState<(Reservation & Trip)[]>([]);
-  const [filtered, setFiltered] = useState<(Reservation & Trip)[]>([]);
+  const [reservas, setReservas] = useState<HistoryItem[]>([]);
+  const [filtered, setFiltered] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState("");
 
   useEffect(() => {
     if (user) {
-      fetchHistory();
+      fetchHistory(user.id);
     } else {
       setLoading(false);
     }
   }, [user]);
 
-  const fetchHistory = async () => {
-    if (!user) return;
+  const fetchHistory = async (userId: string) => {
     setLoading(true);
 
     try {
-      const { data: reservasData, error } = await supabase
+      console.log("🔎 Cargando historial para pasajero:", userId);
+
+      type RowFromDb = {
+        id: string;
+        trip_id: string;
+        created_at: string;
+        status: string;
+        viaje: {
+          id: string;
+          origin: string;
+          destination: string;
+          departure_time: string;
+          price: number;
+          conductor: {
+            first_name: string | null;
+            last_name: string | null;
+          } | null;
+        } | null;
+      };
+
+      const { data, error } = await supabase
         .from("reservas")
-        .select("*")
-        .eq("passenger_id", user.id);
+        .select(
+          `
+          id,
+          trip_id,
+          created_at,
+          status,
+          viaje:viajes (
+            id,
+            origin,
+            destination,
+            departure_time,
+            price,
+            conductor:usuarios (
+              first_name,
+              last_name
+            )
+          )
+        `
+        )
+        .eq("passenger_id", userId)
+        .order("created_at", { ascending: false });
 
       if (error) {
         console.error("❌ Error cargando reservas:", error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!reservasData || reservasData.length === 0) {
         setReservas([]);
         setFiltered([]);
-        setLoading(false);
         return;
       }
 
-      // 2️⃣ Enlazar con datos de viaje (mock)
-      const detailed: (Reservation & Trip)[] = reservasData.map((r) => {
-        const trip = mockTrips.find((t) => t.id === r.trip_id);
-        return {
-          ...r,
-          ...(trip || {
-            driver: "Conductor desconocido",
-            origin: "Origen desconocido",
-            destination: "Destino desconocido",
-            time: "00:00",
-            price: 0,
-          }),
-        };
-      });
+      const rows = (data ?? []) as unknown as RowFromDb[];
 
-      // 3️⃣ Filtrar solo reservas con al menos 24h de antigüedad
-      const now = new Date().getTime();
-      const oneDayMs = 24 * 60 * 60 * 1000;
+      const mapped: HistoryItem[] = rows
+        .filter((r) => r.viaje !== null)
+        .map((r) => {
+          const v = r.viaje!;
+          const driverName =
+            (v.conductor?.first_name || v.conductor?.last_name)
+              ? `${v.conductor?.first_name ?? ""} ${
+                  v.conductor?.last_name ?? ""
+                }`.trim()
+              : "Conductor UniRide";
 
-      const pastReservations = detailed.filter((r) => {
-        const createdMs = new Date(r.created_at).getTime();
-        return now - createdMs >= oneDayMs;
-      });
+          return {
+            reserva_id: r.id,
+            trip_id: r.trip_id,
+            created_at: r.created_at,
+            status: r.status,
+            origin: v.origin,
+            destination: v.destination,
+            departure_time: v.departure_time,
+            price: v.price,
+            driver_name: driverName,
+          };
+        });
 
-      console.log("✅ Historial (reservas pasadas):", pastReservations.length);
-
-      setReservas(pastReservations);
-      setFiltered(pastReservations);
+      console.log("✅ Historial total de reservas:", mapped.length);
+      setReservas(mapped);
+      setFiltered(mapped);
     } catch (e) {
       console.error("❌ Excepción cargando historial:", e);
+      setReservas([]);
+      setFiltered([]);
     } finally {
       setLoading(false);
     }
   };
 
-  /* 🔍 FILTRAR POR FECHA (YYYY-MM-DD) DENTRO DEL HISTORIAL */
+  /* 🔍 FILTRAR POR FECHA (YYYY, YYYY-MM, YYYY-MM-DD) SOBRE created_at */
   useEffect(() => {
     if (!filterDate.trim()) {
       setFiltered(reservas);
@@ -171,24 +223,40 @@ export default function HistoryReservations() {
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={{ color: "#6B7280" }}>
+          <Text style={{ color: "#6B7280", textAlign: "center" }}>
             No tienes viajes en tu historial todavía.
           </Text>
         </View>
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(item) => `${item.trip_id}-${item.created_at}`}
+          keyExtractor={(item) => item.reserva_id}
           contentContainerStyle={{ padding: 16 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
               <Text style={styles.tripText}>
                 {item.origin} → {item.destination}
               </Text>
-              <Text style={styles.driver}>Conductor: {item.driver}</Text>
-              <Text style={styles.time}>Hora: {item.time}</Text>
+
+              <Text style={styles.driver}>
+                Conductor: {item.driver_name}
+              </Text>
+
+              <Text style={styles.time}>
+                Salida: {formatDate(item.departure_time)} ·{" "}
+                {formatTime(item.departure_time)}
+              </Text>
+
               <Text style={styles.date}>
-                Reservado el: {item.created_at.substring(0, 10)}
+                Reservado el: {formatDate(item.created_at)}
+              </Text>
+
+              <Text style={styles.status}>
+                Estado: <Text style={styles.statusBold}>{item.status}</Text>
+              </Text>
+
+              <Text style={styles.price}>
+                Precio: ${item.price.toLocaleString("es-CO")} / pasajero
               </Text>
             </View>
           )}
@@ -198,34 +266,7 @@ export default function HistoryReservations() {
   );
 }
 
-/* ---------- MOCK VIAJES ---------- */
-const mockTrips: Trip[] = [
-  {
-    id: "1",
-    driver: "Carlos Pérez",
-    origin: "Universidad de La Sabana",
-    destination: "Portal Norte",
-    time: "13:45",
-    price: 7000,
-  },
-  {
-    id: "2",
-    driver: "María López",
-    origin: "Chía Centro",
-    destination: "Calle 100",
-    time: "14:10",
-    price: 9000,
-  },
-  {
-    id: "3",
-    driver: "Andrés Gómez",
-    origin: "La Caro",
-    destination: "Unicentro",
-    time: "15:00",
-    price: 8500,
-  },
-];
-
+/* ---------- ESTILOS ---------- */
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
@@ -276,5 +317,8 @@ const styles = StyleSheet.create({
   tripText: { fontSize: 17, fontWeight: "700", color: "#111" },
   driver: { marginTop: 6, color: "#1E3A8A", fontWeight: "600" },
   time: { color: "#6B7280", marginTop: 4 },
-  date: { marginTop: 6, color: "#4B5563", fontSize: 13 },
+  date: { marginTop: 4, color: "#4B5563", fontSize: 13 },
+  status: { marginTop: 4, color: "#4B5563", fontSize: 13 },
+  statusBold: { fontWeight: "700" },
+  price: { marginTop: 6, color: "#047857", fontWeight: "600" },
 });
