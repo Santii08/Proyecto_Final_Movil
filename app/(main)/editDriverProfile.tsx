@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import { AuthContext } from '../contexts/AuthContext';
@@ -28,7 +28,7 @@ export default function EditDriverProfile() {
   const [plate, setPlate] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Cargar datos iniciales del usuario
+  // cargar datos del usuario
   useEffect(() => {
     if (user) {
       setFirstName(user.firstName ?? '');
@@ -65,7 +65,6 @@ export default function EditDriverProfile() {
 
     setLoading(true);
     try {
-      // 1) Actualizar en Supabase (tabla usuarios)
       const { error } = await supabase
         .from('usuarios')
         .update({
@@ -78,12 +77,12 @@ export default function EditDriverProfile() {
         .eq('id', user.id);
 
       if (error) {
-        console.error('❌ Error al actualizar perfil en Supabase:', error.message);
+        console.error('❌ Error al actualizar perfil:', error.message);
         Alert.alert('Error', 'No se pudieron guardar los cambios.');
         return;
       }
 
-      // 2) Actualizar el contexto local
+      // actualizar contexto
       setUser({
         ...user,
         firstName: firstName.trim(),
@@ -93,8 +92,8 @@ export default function EditDriverProfile() {
         plate: plate.trim().toUpperCase(),
       });
 
-      Alert.alert('Perfil actualizado', 'Tus datos se han guardado correctamente.', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert('Perfil actualizado', 'Datos guardados correctamente.', [
+        { text: 'OK', onPress: () => router.push("/(main)/driverProfile") },
       ]);
     } catch (err) {
       console.error('❌ Error al actualizar perfil:', err);
@@ -109,25 +108,27 @@ export default function EditDriverProfile() {
       style={{ flex: 1, backgroundColor: '#F5F7FB' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* HEADER */}
       <LinearGradient
         colors={['#2F6CF4', '#00C2FF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <View style={styles.headerContent}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#fff" />
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => router.push("/(main)/driverProfile")} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={26} color="#fff" />
           </Pressable>
-          <Text style={styles.headerTitle}>Editar perfil</Text>
-          <Text style={styles.headerSubtitle}>
-            Actualiza tu información personal
-          </Text>
+
+          <View style={{ marginLeft: 6 }}>
+            <Text style={styles.headerTitle}>Editar perfil</Text>
+            <Text style={styles.headerSubtitle}>Actualiza tu información personal</Text>
+          </View>
         </View>
       </LinearGradient>
 
+      {/* FORMULARIO */}
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Nombre */}
         <View style={styles.inputRow}>
           <Ionicons name="person-outline" size={20} color="#4B5563" style={styles.icon} />
           <TextInput
@@ -139,7 +140,6 @@ export default function EditDriverProfile() {
           />
         </View>
 
-        {/* Apellido */}
         <View style={styles.inputRow}>
           <Ionicons name="person-outline" size={20} color="#4B5563" style={styles.icon} />
           <TextInput
@@ -151,7 +151,6 @@ export default function EditDriverProfile() {
           />
         </View>
 
-        {/* Correo */}
         <View style={styles.inputRow}>
           <Ionicons name="mail-outline" size={20} color="#4B5563" style={styles.icon} />
           <TextInput
@@ -165,7 +164,6 @@ export default function EditDriverProfile() {
           />
         </View>
 
-        {/* Teléfono */}
         <View style={styles.inputRow}>
           <Ionicons name="call-outline" size={20} color="#4B5563" style={styles.icon} />
           <TextInput
@@ -178,7 +176,6 @@ export default function EditDriverProfile() {
           />
         </View>
 
-        {/* Placa (opcional) */}
         <View style={styles.inputRow}>
           <Ionicons name="card-outline" size={20} color="#4B5563" style={styles.icon} />
           <TextInput
@@ -191,7 +188,6 @@ export default function EditDriverProfile() {
           />
         </View>
 
-        {/* Rol solo lectura */}
         <View style={[styles.inputRow, { backgroundColor: '#F3F4F6' }]}>
           <Ionicons
             name="shield-checkmark-outline"
@@ -204,7 +200,7 @@ export default function EditDriverProfile() {
           </Text>
         </View>
 
-        {/* Botón guardar */}
+        {/* BOTÓN GUARDAR */}
         <Pressable
           onPress={handleSave}
           disabled={loading}
@@ -229,23 +225,18 @@ export default function EditDriverProfile() {
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 24,
+    paddingTop: 70,
+    paddingBottom: 26,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },
-  headerContent: {
-    gap: 8,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#FFFFFF66',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+    padding: 6,
+    borderRadius: 10,
   },
   headerTitle: {
     color: '#fff',
@@ -256,13 +247,15 @@ const styles = StyleSheet.create({
     color: '#E6F7FF',
     fontSize: 13,
   },
+
   container: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 34,
     paddingBottom: 40,
     alignItems: 'center',
     gap: 14,
   },
+
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -280,6 +273,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
+
   saveBtn: {
     height: 50,
     borderRadius: 14,
