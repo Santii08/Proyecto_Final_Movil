@@ -1,14 +1,21 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { ReactNode, useCallback, useContext, useState } from 'react';
+import React, {
+  ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from 'react';
 import {
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +36,8 @@ type Trip = {
   vehicle_color?: string | null;
 };
 
+type FilterType = 'today' | 'week' | 'recent';
+
 export default function DriverDashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -39,15 +48,70 @@ export default function DriverDashboard() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
 
+  // 🔹 filtros de próximos viajes
+  const [tripFilter, setTripFilter] = useState<FilterType>('today');
+
+  // 🔹 ganancias reales
+  const [earningsWeek, setEarningsWeek] = useState(0);
+
+  // 🔹 meta semanal editable
+  const [weeklyGoal, setWeeklyGoal] = useState(300_000);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
+  const [goalDraft, setGoalDraft] = useState(String(weeklyGoal));
+
+  // 🔹 modal de detalles de viaje
+  const [tripModalVisible, setTripModalVisible] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+
+  const weeklyProgress = Math.min(
+    weeklyGoal > 0 ? earningsWeek / weeklyGoal : 0,
+    1
+  );
+
   const firstName =
     (user as any)?.first_name ??
     (user as any)?.firstName ??
     'Conductor UniRide';
 
-  // Mock ingresos (si luego quieres lo calculamos de viajes)
-  const earningsToday = 82000;
-  const weeklyGoal = 300000;
-  const weeklyProgress = Math.min(earningsToday / weeklyGoal, 1);
+  /* --------- Helpers de fechas ---------- */
+  const startOfWeek = (d: Date) => {
+    const tmp = new Date(d);
+    const day = tmp.getDay(); // 0 = domingo
+    const diff = (day === 0 ? -6 : 1) - day; // arrancar lunes
+    tmp.setDate(tmp.getDate() + diff);
+    tmp.setHours(0, 0, 0, 0);
+    return tmp;
+  };
+
+  const endOfWeek = (d: Date) => {
+    const start = startOfWeek(d);
+    const tmp = new Date(start);
+    tmp.setDate(start.getDate() + 6);
+    tmp.setHours(23, 59, 59, 999);
+    return tmp;
+  };
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'short',
+    });
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
 
   /* --------- Cargar perfil desde tabla usuarios ---------- */
   const fetchUserProfile = async () => {
@@ -81,7 +145,6 @@ export default function DriverDashboard() {
         price: number;
         status: string | null;
         vehicle_id: string | null;
-        // 👇 OJO: objeto, NO array
         vehiculo: { plate: string; color: string | null } | null;
       };
 
@@ -101,8 +164,7 @@ export default function DriverDashboard() {
             color
           )
         `)
-        .eq('driver_id', user.id)
-        .order('departure_time', { ascending: true });
+        .eq('driver_id', user.id);
 
       if (error) {
         console.log('❌ Error cargando viajes:', error.message);
@@ -112,7 +174,7 @@ export default function DriverDashboard() {
       const typedData = (data ?? []) as unknown as TripRowFromDb[];
 
       const mappedTrips: Trip[] = typedData.map((row) => {
-        const veh = row.vehiculo; // 👈 ya es objeto o null
+        const veh = row.vehiculo;
 
         return {
           id: row.id,
@@ -136,26 +198,53 @@ export default function DriverDashboard() {
     }
   };
 
+  /* --------- Cargar ganancias reales de la semana ---------- */
+  const fetchWeeklyEarnings = async () => {
+    if (!user?.id) return;
+
+    try {
+      const now = new Date();
+      const weekStart = startOfWeek(now).toISOString();
+      const weekEnd = endOfWeek(now).toISOString();
+
+      type GananciaRow = {
+        trip_id: string;
+        amount: number;
+        created_at: string;
+      };
+
+      const { data, error } = await supabase
+        .from('ganancias')
+        .select('trip_id, amount, created_at')
+        .eq('driver_id', user.id)
+        .gte('created_at', weekStart)
+        .lte('created_at', weekEnd);
+
+      if (error) {
+        console.log('❌ Error cargando ganancias:', error.message);
+        return;
+      }
+
+      const rows = (data ?? []) as GananciaRow[];
+      const total = rows.reduce((acc, row) => acc + (row.amount ?? 0), 0);
+      setEarningsWeek(total);
+    } catch (e: any) {
+      console.log('❌ Excepción calculando ganancias:', e.message);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
       fetchTrips();
+      fetchWeeklyEarnings();
     }, [user?.id])
   );
 
-  /* --------- Helpers ---------- */
-  const formatTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('es-CO', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
-
+  /* --------- Estado a texto ---------- */
   const mapStatusLabel = (
     dbStatus: string | null
-  ): 'Pendiente' | 'Confirmado' | 'Cancelado' | string => {
+  ): 'Pendiente' | 'Confirmado' | 'Cancelado' | 'Finalizado' | string => {
     switch (dbStatus) {
       case 'publicado':
       case 'pendiente':
@@ -164,12 +253,50 @@ export default function DriverDashboard() {
         return 'Confirmado';
       case 'cancelado':
         return 'Cancelado';
+      case 'finalizado':
+        return 'Finalizado';
       default:
         return 'Pendiente';
     }
   };
 
-  // Lógica para cancelar viaje con validación de 40 minutos
+  /* --------- Filtrado + orden de viajes ---------- */
+  const computeTripsForUI = () => {
+    const today = new Date();
+    const startWeek = startOfWeek(today);
+    const endWeek = endOfWeek(today);
+
+    let filtered = trips.filter((t) => {
+      const d = new Date(t.departure_time);
+
+      if (tripFilter === 'today') {
+        return isSameDay(d, today) && d >= today;
+      }
+      if (tripFilter === 'week') {
+        return d >= startWeek && d <= endWeek;
+      }
+      // 'recent': no filtro, solo orden
+      return true;
+    });
+
+    filtered = filtered.sort((a, b) => {
+      const da = new Date(a.departure_time).getTime();
+      const db = new Date(b.departure_time).getTime();
+
+      if (tripFilter === 'recent') {
+        // más recientes primero
+        return db - da;
+      }
+      // por defecto, de más próximos hacia adelante
+      return da - db;
+    });
+
+    return filtered;
+  };
+
+  const filteredTrips = computeTripsForUI();
+
+  /* --------- Cancelar viaje ---------- */
   const handleCancelTrip = async (trip: Trip) => {
     const uiStatus = mapStatusLabel(trip.status);
 
@@ -227,6 +354,169 @@ export default function DriverDashboard() {
         },
       ]
     );
+  };
+
+  /* --------- Finalizar viaje + guardar ganancias ---------- */
+  const handleFinishTrip = async (trip: Trip) => {
+    const uiStatus = mapStatusLabel(trip.status);
+
+    if (uiStatus === 'Cancelado') {
+      Alert.alert('No disponible', 'No puedes finalizar un viaje cancelado.');
+      return;
+    }
+    if (uiStatus === 'Finalizado') {
+      Alert.alert(
+        'Viaje ya finalizado',
+        'Este viaje ya fue marcado como finalizado.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Finalizar viaje',
+      '¿Marcar este viaje como finalizado y registrar las ganancias?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, finalizar',
+          onPress: async () => {
+            try {
+              // 1) verificar si ya hay registro de ganancias para este viaje
+              const { data: existing, error: gainError } = await supabase
+                .from('ganancias')
+                .select('id, amount')
+                .eq('trip_id', trip.id)
+                .maybeSingle();
+
+              if (gainError) {
+                console.log(
+                  '❌ Error comprobando ganancias existentes:',
+                  gainError.message
+                );
+              }
+
+              if (existing) {
+                // Ya hay registro, solo marcar como finalizado
+                const { error: updError } = await supabase
+                  .from('viajes')
+                  .update({ status: 'finalizado' })
+                  .eq('id', trip.id);
+
+                if (updError) {
+                  console.log('❌ Error al finalizar viaje:', updError.message);
+                  Alert.alert('Error', 'No se pudo finalizar el viaje.');
+                  return;
+                }
+
+                setTrips((prev) =>
+                  prev.map((t) =>
+                    t.id === trip.id ? { ...t, status: 'finalizado' } : t
+                  )
+                );
+
+                fetchWeeklyEarnings();
+                setTripModalVisible(false);
+                Alert.alert(
+                  'Viaje finalizado',
+                  'Ya existía un registro de ganancias para este viaje.'
+                );
+                return;
+              }
+
+              // 2) contar reservas del viaje
+              type ReservaRow = { trip_id: string };
+
+              const { data: reservasData, error: reservasError } =
+                await supabase
+                  .from('reservas')
+                  .select('trip_id')
+                  .eq('trip_id', trip.id);
+
+              if (reservasError) {
+                console.log('❌ Error cargando reservas:', reservasError.message);
+                Alert.alert(
+                  'Error',
+                  'No se pudo obtener la información de reservas.'
+                );
+                return;
+              }
+
+              const reservas = (reservasData ?? []) as ReservaRow[];
+              const cantidadPasajeros = reservas.length;
+
+              const amount = trip.price * cantidadPasajeros;
+
+              // 3) actualizar viaje a finalizado
+              const { error: updError2 } = await supabase
+                .from('viajes')
+                .update({ status: 'finalizado' })
+                .eq('id', trip.id);
+
+              if (updError2) {
+                console.log('❌ Error al actualizar viaje:', updError2.message);
+                Alert.alert('Error', 'No se pudo finalizar el viaje.');
+                return;
+              }
+
+              // 4) insertar ganancias
+              const { error: insertError } = await supabase
+                .from('ganancias')
+                .insert({
+                  trip_id: trip.id,
+                  driver_id: user?.id,
+                  amount,
+                });
+
+              if (insertError) {
+                console.log(
+                  '❌ Error insertando ganancias:',
+                  insertError.message
+                );
+                Alert.alert(
+                  'Error',
+                  'El viaje se finalizó, pero no se pudo registrar las ganancias.'
+                );
+              }
+
+              setTrips((prev) =>
+                prev.map((t) =>
+                  t.id === trip.id ? { ...t, status: 'finalizado' } : t
+                )
+              );
+
+              fetchWeeklyEarnings();
+              setTripModalVisible(false);
+
+              Alert.alert(
+                'Viaje finalizado',
+                `Se registraron $${amount.toLocaleString(
+                  'es-CO'
+                )} de ganancias para este viaje.`
+              );
+            } catch (e: any) {
+              console.log('❌ Excepción al finalizar viaje:', e.message);
+              Alert.alert('Error', 'Ocurrió un problema al finalizar el viaje.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  /* --------- Guardar nueva meta semanal ---------- */
+  const handleSaveGoal = () => {
+    const n = parseInt(goalDraft, 10);
+    if (isNaN(n) || n <= 0) {
+      Alert.alert('Meta inválida', 'Ingresa un valor numérico mayor que cero.');
+      return;
+    }
+    setWeeklyGoal(n);
+    setGoalModalVisible(false);
+  };
+
+  const openTripDetails = (trip: Trip) => {
+    setSelectedTrip(trip);
+    setTripModalVisible(true);
   };
 
   return (
@@ -306,17 +596,25 @@ export default function DriverDashboard() {
           {/* Meta rápida / resumen */}
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Hoy</Text>
+              <Text style={styles.summaryLabel}>Esta semana</Text>
               <Text style={styles.summaryValue}>
-                ${earningsToday.toLocaleString('es-CO')}
+                ${earningsWeek.toLocaleString('es-CO')}
               </Text>
             </View>
-            <View style={[styles.summaryItem, { alignItems: 'flex-end' }]}>
+
+            {/* 👉 Tocar aquí para cambiar meta */}
+            <Pressable
+              style={[styles.summaryItem, { alignItems: 'flex-end' }]}
+              onPress={() => {
+                setGoalDraft(String(weeklyGoal));
+                setGoalModalVisible(true);
+              }}
+            >
               <Text style={styles.summaryLabel}>Meta semanal</Text>
               <Text style={styles.summaryValue}>
                 ${weeklyGoal.toLocaleString('es-CO')}
               </Text>
-            </View>
+            </Pressable>
           </View>
 
           <View style={styles.progressTrack}>
@@ -372,7 +670,7 @@ export default function DriverDashboard() {
                 />
               }
               label="Soporte"
-              onPress={() => router.push("/(main)/support")}
+              onPress={() => router.push('/(main)/support')}
             />
           </View>
         </View>
@@ -381,25 +679,62 @@ export default function DriverDashboard() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Próximos viajes</Text>
-            <Pressable onPress={() => router.push('/(main)/indexDriver')}>
+            {/* Ver todos = poner filtro en "Recientes" */}
+            <Pressable onPress={() => setTripFilter('recent')}>
               <Text style={styles.link}>Ver todos</Text>
             </Pressable>
+          </View>
+
+          {/* 🔹 Filtros por fecha (Hoy / Semana / Recientes) */}
+          <View style={styles.filterRow}>
+            {(['today', 'week', 'recent'] as FilterType[]).map((f) => {
+              const label =
+                f === 'today'
+                  ? 'Hoy'
+                  : f === 'week'
+                  ? 'Esta semana'
+                  : 'Recientes';
+              const active = tripFilter === f;
+              return (
+                <Pressable
+                  key={f}
+                  style={[
+                    styles.filterChip,
+                    active && styles.filterChipActive,
+                  ]}
+                  onPress={() => setTripFilter(f)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      active && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           {loadingTrips ? (
             <Text style={{ color: '#6B7280', marginTop: 8 }}>
               Cargando viajes...
             </Text>
-          ) : trips.length === 0 ? (
+          ) : filteredTrips.length === 0 ? (
             <Text style={{ color: '#6B7280', marginTop: 8 }}>
-              Aún no has publicado viajes.
+              No hay viajes para este filtro.
             </Text>
           ) : (
-            trips.map((item) => {
+            filteredTrips.map((item) => {
               const uiStatus = mapStatusLabel(item.status);
 
               return (
-                <View key={item.id} style={styles.tripRow}>
+                <Pressable
+                  key={item.id}
+                  style={styles.tripRow}
+                  onPress={() => openTripDetails(item)}
+                >
                   <View style={styles.tripIcon}>
                     <Ionicons
                       name="navigate-outline"
@@ -420,8 +755,12 @@ export default function DriverDashboard() {
                       />
                     </View>
 
-                    {/* Fila inferior: info hora / cupos / placa / precio */}
+                    {/* Fila inferior: info fecha / hora / cupos / placa / precio */}
                     <View style={styles.tripMeta}>
+                      <Badge
+                        icon="calendar-outline"
+                        text={formatDate(item.departure_time)}
+                      />
                       <Badge
                         icon="time-outline"
                         text={formatTime(item.departure_time)}
@@ -440,7 +779,7 @@ export default function DriverDashboard() {
                       />
                     </View>
                   </View>
-                </View>
+                </Pressable>
               );
             })
           )}
@@ -464,6 +803,116 @@ export default function DriverDashboard() {
           <Text style={styles.fabText}>Publicar viaje</Text>
         </LinearGradient>
       </Pressable>
+
+      {/* 🔹 Modal para editar meta semanal */}
+      <Modal
+        visible={goalModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setGoalModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Editar meta semanal</Text>
+            <Text style={styles.modalSubtitle}>
+              Ingresa el valor de tu nueva meta en COP.
+            </Text>
+
+            <TextInput
+              value={goalDraft}
+              onChangeText={setGoalDraft}
+              keyboardType="numeric"
+              style={styles.modalInput}
+              placeholder="Meta semanal"
+            />
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalBtn, styles.modalBtnSecondary]}
+                onPress={() => setGoalModalVisible(false)}
+              >
+                <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, styles.modalBtnPrimary]}
+                onPress={handleSaveGoal}
+              >
+                <Text style={styles.modalBtnPrimaryText}>Guardar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🔹 Modal detalles de viaje + finalizar */}
+      <Modal
+        visible={tripModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTripModalVisible(false)}
+      >
+        <View style={styles.tripModalBackdrop}>
+          <View style={styles.tripModalCard}>
+            {selectedTrip && (
+              <>
+                <Text style={styles.tripModalTitle}>Detalle del viaje</Text>
+                <Text style={styles.tripModalRoute}>
+                  {selectedTrip.origin} → {selectedTrip.destination}
+                </Text>
+
+                <View style={styles.tripModalRow}>
+                  <Badge
+                    icon="calendar-outline"
+                    text={formatDate(selectedTrip.departure_time)}
+                  />
+                  <Badge
+                    icon="time-outline"
+                    text={formatTime(selectedTrip.departure_time)}
+                  />
+                </View>
+
+                <View style={styles.tripModalRow}>
+                  <Badge
+                    icon="people-outline"
+                    text={`${selectedTrip.seats_available} cupos disponibles`}
+                  />
+                  <Badge
+                    icon="car-sport-outline"
+                    text={selectedTrip.vehicle_plate ?? 'Sin placa'}
+                  />
+                </View>
+
+                <View style={styles.tripModalRow}>
+                  <Badge
+                    icon="cash-outline"
+                    text={`$${selectedTrip.price.toLocaleString('es-CO')} / pasajero`}
+                  />
+                  <StatusPill
+                    status={mapStatusLabel(selectedTrip.status)}
+                  />
+                </View>
+
+                <View style={styles.tripModalActions}>
+                  <Pressable
+                    style={[styles.modalBtn, styles.modalBtnSecondary]}
+                    onPress={() => setTripModalVisible(false)}
+                  >
+                    <Text style={styles.modalBtnSecondaryText}>Cerrar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modalBtn, styles.modalBtnPrimary]}
+                    onPress={() => handleFinishTrip(selectedTrip)}
+                  >
+                    <Text style={styles.modalBtnPrimaryText}>
+                      Finalizar viaje
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -499,7 +948,7 @@ function Badge({ icon, text }: BadgeProps) {
 }
 
 type StatusPillProps = {
-  status: 'Pendiente' | 'Confirmado' | 'Cancelado' | string;
+  status: 'Pendiente' | 'Confirmado' | 'Cancelado' | 'Finalizado' | string;
   onPress?: () => void;
 };
 
@@ -508,6 +957,7 @@ function StatusPill({ status, onPress }: StatusPillProps) {
     Pendiente: { bg: '#FFF7ED', color: '#C2410C' },
     Confirmado: { bg: '#ECFDF5', color: '#047857' },
     Cancelado: { bg: '#FEF2F2', color: '#B91C1C' },
+    Finalizado: { bg: '#EFF6FF', color: '#1D4ED8' },
   } as const;
   const s =
     map[status as keyof typeof map] || {
@@ -713,6 +1163,32 @@ const styles = StyleSheet.create({
   },
   pillText: { fontWeight: '800', fontSize: 12 },
 
+  /* Filtros */
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  filterChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+  },
+  filterChipText: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: '#1D4ED8',
+  },
+
   /* FAB */
   fabWrap: {
     position: 'absolute',
@@ -733,5 +1209,100 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '800',
     fontSize: 16,
+  },
+
+  /* Modal meta semanal */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCard: {
+    width: '86%',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginBottom: 14,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalBtn: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  modalBtnSecondary: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalBtnPrimary: {
+    backgroundColor: '#2563EB',
+  },
+  modalBtnSecondaryText: {
+    color: '#111827',
+    fontWeight: '600',
+  },
+  modalBtnPrimaryText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+
+  /* Modal detalles viaje */
+  tripModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'flex-end',
+  },
+  tripModalCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
+  },
+  tripModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  tripModalRoute: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  tripModalRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  tripModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 6,
   },
 });

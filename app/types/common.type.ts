@@ -8,4 +8,5 @@ export interface User {
   phone?: string | null;
   plate?: string | null;
   rol: RolUsuario;
+  avatar_url?: string | null;
 }
