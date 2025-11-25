@@ -1,5 +1,3 @@
-// app/(main)/editPassengerProfile.tsx
-
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -17,15 +15,17 @@ import {
 } from 'react-native';
 
 import { AuthContext } from '../contexts/AuthContext';
+import { supabase } from '../utils/supabase';
 
-export default function EditPassengerProfile() {
+export default function EditDriverProfile() {
   const router = useRouter();
-  const { user, updateProfile } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [plate, setPlate] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Cargar datos iniciales del usuario
@@ -40,7 +40,14 @@ export default function EditPassengerProfile() {
 
   if (!user) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F7FB' }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#F5F7FB',
+        }}
+      >
         <Text>No hay usuario en sesión.</Text>
       </View>
     );
@@ -48,29 +55,44 @@ export default function EditPassengerProfile() {
 
   const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      Alert.alert('Campos obligatorios', 'Nombre, apellido y correo son obligatorios.');
+      Alert.alert(
+        'Campos obligatorios',
+        'Nombre, apellido y correo son obligatorios.'
+      );
       return;
     }
 
     setLoading(true);
     try {
-      const ok = await updateProfile({
+      // 1) Actualizar en Supabase (tabla usuarios)
+      const { error } = await supabase
+        .from('usuarios')
+        .update({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('❌ Error al actualizar perfil en Supabase:', error.message);
+        Alert.alert('Error', 'No se pudieron guardar los cambios.');
+        return;
+      }
+
+      // 2) Actualizar el contexto local
+      setUser({
+        ...user,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
       });
 
-      if (ok) {
-        Alert.alert('Perfil actualizado', 'Tus datos se han guardado correctamente.', [
-          {
-            text: 'OK',
-            onPress: () => router.back(), // vuelve al perfil
-          },
-        ]);
-      } else {
-        Alert.alert('Error', 'No se pudieron guardar los cambios. Inténtalo de nuevo.');
-      }
+      Alert.alert('Perfil actualizado', 'Tus datos se han guardado correctamente.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
     } catch (err) {
       console.error('❌ Error al actualizar perfil:', err);
       Alert.alert('Error', 'Ocurrió un error inesperado.');
@@ -95,7 +117,9 @@ export default function EditPassengerProfile() {
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
           <Text style={styles.headerTitle}>Editar perfil</Text>
-          <Text style={styles.headerSubtitle}>Actualiza tu información personal</Text>
+          <Text style={styles.headerSubtitle}>
+            Actualiza tu información personal
+          </Text>
         </View>
       </LinearGradient>
 
@@ -151,23 +175,47 @@ export default function EditPassengerProfile() {
           />
         </View>
 
+        {/* Placa (opcional) */}
+        <View style={styles.inputRow}>
+          <Ionicons name="card-outline" size={20} color="#4B5563" style={styles.icon} />
+          <TextInput
+            style={styles.input}
+            placeholder="Placa (si aplica)"
+            placeholderTextColor="#9CA3AF"
+            value={plate}
+            onChangeText={setPlate}
+            autoCapitalize="characters"
+          />
+        </View>
+
         {/* Rol solo lectura */}
         <View style={[styles.inputRow, { backgroundColor: '#F3F4F6' }]}>
-          <Ionicons name="shield-checkmark-outline" size={20} color="#4B5563" style={styles.icon} />
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={20}
+            color="#4B5563"
+            style={styles.icon}
+          />
           <Text style={{ color: '#4B5563' }}>
             Rol actual: <Text style={{ fontWeight: '700' }}>{user.rol}</Text>
           </Text>
         </View>
 
         {/* Botón guardar */}
-        <Pressable onPress={handleSave} disabled={loading} style={{ width: '100%', marginTop: 10 }}>
+        <Pressable
+          onPress={handleSave}
+          disabled={loading}
+          style={{ width: '100%', marginTop: 10 }}
+        >
           <LinearGradient
             colors={['#2F6CF4', '#00C2FF']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[styles.saveBtn, loading && { opacity: 0.7 }]}
           >
-            <Text style={styles.saveText}>{loading ? 'Guardando...' : 'Guardar cambios'}</Text>
+            <Text style={styles.saveText}>
+              {loading ? 'Guardando...' : 'Guardar cambios'}
+            </Text>
           </LinearGradient>
         </Pressable>
       </ScrollView>
