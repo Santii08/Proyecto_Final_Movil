@@ -1,14 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import UniRideLogo from "../../components/UniRideLogo";
@@ -33,6 +37,8 @@ export default function SupportScreen() {
   const [isSending, setIsSending] = useState(false);
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const handleSendReport = async () => {
     if (!reportText.trim()) {
@@ -143,108 +149,124 @@ No agregues nada fuera del JSON.
     }
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* HEADER */}
-        <LinearGradient
-          colors={["#2F6CF4", "#7C5BFA"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.header}
+return (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }} // 👈 sin background aquí
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0} // 👈 subimos más
+  >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
+        <ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 0 }} // 👈 más espacio extra abajo
         >
-          <Pressable onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={26} color="#fff" />
-          </Pressable>
-
-          <Text style={styles.title}>Soporte UniRide</Text>
-
-          <View style={{ alignItems: "center", marginTop: 12 }}>
-            <UniRideLogo />
-          </View>
-        </LinearGradient>
-
-        {/* OPCIONES PRINCIPALES */}
-        <View style={styles.section}>
-          <SupportCard
-            icon="car-outline"
-            title="Problema con un viaje"
-            subtitle="Cobro, ruta, conductor, etc."
-          />
-          <SupportCard
-            icon="shield-checkmark-outline"
-            title="Seguridad y confianza"
-            subtitle="Reportar comportamiento o situación de riesgo"
-          />
-
-          <SupportCard
-            icon="help-circle-outline"
-            title="Centro de ayuda"
-            subtitle="Preguntas frecuentes de la app"
-          />
-        </View>
-
-        {/* FAQ */}
-        <View style={styles.section}>
-          <FAQCard text="¿Qué pasa si el conductor cancela el viaje?" />
-          <FAQCard text="¿Cómo reporto un problema de seguridad?" />
-          <FAQCard text="¿Cómo se calculan los costos del viaje?" />
-        </View>
-
-        {/* FORMULARIO */}
-        <View style={styles.formSection}>
-          <Text style={styles.formTitle}>Cuéntanos qué ocurrió</Text>
-          <Text style={styles.formDesc}>
-            Nuestro equipo revisará tu caso y te responderá por correo o
-            WhatsApp.
-          </Text>
-
-          <TextInput
-            placeholder="Ej: El conductor no llegó al punto de encuentro..."
-            placeholderTextColor="#9CA3AF"
-            style={styles.textArea}
-            multiline
-            numberOfLines={5}
-            value={reportText}
-            onChangeText={setReportText}
-          />
-
-          <Pressable
-            style={styles.submitButton}
-            onPress={handleSendReport}
-            disabled={isSending}
+          {/* HEADER */}
+          <LinearGradient
+            colors={["#2F6CF4", "#7C5BFA"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.header}
           >
-            {isSending ? (
-              <>
-                <ActivityIndicator size="small" color="#fff" />
-                <Text style={styles.submitText}>Enviando...</Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.submitText}>Enviar reporte</Text>
-                <Ionicons name="send-outline" size={18} color="#fff" />
-              </>
-            )}
-          </Pressable>
+            <Pressable onPress={() => router.back()}>
+              <Ionicons name="arrow-back" size={26} color="#fff" />
+            </Pressable>
 
-          {/* Mensaje de error */}
-          {error && (
-            <Text style={{ color: "#F97316", marginTop: 10 }}>
-              {error}
-            </Text>
-          )}
+            <Text style={styles.title}>Soporte UniRide</Text>
 
-          {/* Respuesta IA */}
-          {aiAnswer && (
-            <View style={[styles.aiCard, { marginTop: 18 }]}>
-              <Text style={styles.aiTitle}>Respuesta rápida de UniRide IA</Text>
-              <Text style={styles.aiText}>{aiAnswer}</Text>
+            <View style={{ alignItems: "center", marginTop: 12 }}>
+              <UniRideLogo />
             </View>
-          )}
-        </View>
-      </ScrollView>
-    </View>
-  );
+          </LinearGradient>
+
+          {/* OPCIONES PRINCIPALES */}
+          <View style={styles.section}>
+            <SupportCard
+              icon="car-outline"
+              title="Problema con un viaje"
+              subtitle="Cobro, ruta, conductor, etc."
+            />
+            <SupportCard
+              icon="shield-checkmark-outline"
+              title="Seguridad y confianza"
+              subtitle="Reportar comportamiento o situación de riesgo"
+            />
+            <SupportCard
+              icon="help-circle-outline"
+              title="Centro de ayuda"
+              subtitle="Preguntas frecuentes de la app"
+            />
+          </View>
+
+          {/* FAQ */}
+          <View style={styles.section}>
+            <FAQCard text="¿Qué pasa si el conductor cancela el viaje?" />
+            <FAQCard text="¿Cómo reporto un problema de seguridad?" />
+            <FAQCard text="¿Cómo se calculan los costos del viaje?" />
+          </View>
+
+          {/* FORMULARIO */}
+          <View style={styles.formSection}>
+            <Text style={styles.formTitle}>Cuéntanos qué ocurrió</Text>
+            <Text style={styles.formDesc}>
+              Nuestro equipo revisará tu caso y te responderá por correo o
+              WhatsApp.
+            </Text>
+
+            <TextInput
+              placeholder="Ej: El conductor no llegó al punto de encuentro..."
+              placeholderTextColor="#9CA3AF"
+              style={styles.textArea}
+              multiline
+              numberOfLines={5}
+              value={reportText}
+              onChangeText={setReportText}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollRef.current?.scrollToEnd({ animated: true });
+                }, 200);
+              }}
+            />
+
+            <Pressable
+              style={styles.submitButton}
+              onPress={handleSendReport}
+              disabled={isSending}
+            >
+              {isSending ? (
+                <>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.submitText}>Enviando...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.submitText}>Enviar reporte</Text>
+                  <Ionicons name="send-outline" size={18} color="#fff" />
+                </>
+              )}
+            </Pressable>
+
+            {error && (
+              <Text style={{ color: "#F97316", marginTop: 10 }}>
+                {error}
+              </Text>
+            )}
+
+            {aiAnswer && (
+              <View style={[styles.aiCard, { marginTop: 18 }]}>
+                <Text style={styles.aiTitle}>Respuesta rápida de UniRide IA</Text>
+                <Text style={styles.aiText}>{aiAnswer}</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
+);
+
 }
 
 /* ============================================

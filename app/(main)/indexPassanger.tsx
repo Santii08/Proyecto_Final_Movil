@@ -22,13 +22,15 @@ import { supabase } from "../utils/supabase";
 /* ---------- TIPOS PARA LA UI ---------- */
 type Trip = {
   id: string;
-  driver: string;
-  driverId: string;
+  driver: string; // nombre que mostramos
+  driverId: string; // id del conductor en usuarios
   origin: string;
   destination: string;
-  time: string;
+  time: string; // hora formateada
   price: number;
-  rating: number;
+  rating: number; // por ahora mock
+
+  // 👇 coordenadas
   origin_lat: number | null;
   origin_lng: number | null;
   destination_lat: number | null;
@@ -47,10 +49,12 @@ type TripFromDB = {
   seats_available: number;
   status: string;
   vehicle_id: string | null;
+
   origin_lat: number | null;
   origin_lng: number | null;
   destination_lat: number | null;
   destination_lng: number | null;
+
   vehiculo?: {
     plate?: string | null;
     color?: string | null;
@@ -240,9 +244,9 @@ const PassengerHome: React.FC = () => {
             )
           `
           )
-          .eq("status", "publicado")
-          .gt("seats_available", 0)
-          .neq("driver_id", user.id);
+          .eq("status", "publicado") // solo viajes publicados
+          .gt("seats_available", 0) // con cupos disponibles
+          .neq("driver_id", user.id); // 👈 excluir viajes del propio usuario
 
         if (error) {
           console.error("❌ Error cargando viajes:", error.message);
@@ -271,7 +275,7 @@ const PassengerHome: React.FC = () => {
                 minute: "2-digit",
               }),
               price: t.price,
-              rating: 5.0,
+              rating: 5.0, // de momento fijo; luego puedes calcularlo de otra tabla
               origin_lat: t.origin_lat,
               origin_lng: t.origin_lng,
               destination_lat: t.destination_lat,
@@ -486,7 +490,7 @@ const PassengerHome: React.FC = () => {
                         }
 
                         router.push({
-                          pathname: "/(main)/mapScreen",
+                          pathname: "/(main)/mapScreen", // ✅ ruta absoluta como antes
                           params: {
                             trip_id: item.id,
                             driver: item.driver,

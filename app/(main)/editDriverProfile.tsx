@@ -3,15 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 
 import { AuthContext } from '../contexts/AuthContext';
@@ -35,6 +35,7 @@ export default function EditDriverProfile() {
       setLastName(user.lastName ?? '');
       setEmail(user.email ?? '');
       setPhone(user.phone ?? '');
+      setPlate(user.plate ?? '');
     }
   }, [user]);
 
@@ -72,6 +73,7 @@ export default function EditDriverProfile() {
           last_name: lastName.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
+          plate: plate.trim().toUpperCase(),
         })
         .eq('id', user.id);
 
@@ -88,6 +90,7 @@ export default function EditDriverProfile() {
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
+        plate: plate.trim().toUpperCase(),
       });
 
       Alert.alert('Perfil actualizado', 'Tus datos se han guardado correctamente.', [

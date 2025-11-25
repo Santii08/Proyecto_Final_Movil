@@ -12,7 +12,9 @@ interface AuthContextProps {
   setUser: (user: User | null) => void;
 }
 
-export const AuthContext = createContext<AuthContextProps>({} as AuthContextProps);
+export const AuthContext = createContext<AuthContextProps>(
+  {} as AuthContextProps
+);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -84,7 +86,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * LOGIN
    * Devuelve el User completo o null
    */
-  const login = async (email: string, password: string): Promise<User | null> => {
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<User | null> => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -92,31 +97,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (error || !data.user) {
-        console.error('❌ Login error:', error?.message);
+        console.error("❌ Login error:", error?.message);
         return null;
       }
 
       // 1️⃣ Intentar traer fila de "usuarios"
       const { data: profileData, error: profileError } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('id', data.user.id)
+        .from("usuarios")
+        .select(
+          "id, email, first_name, last_name, phone, plate, rol, avatar_driver_url, avatar_passenger_url"
+        )
+        .eq("id", data.user.id)
         .single();
 
       let finalUser: User;
 
       if (profileError || !profileData) {
-        console.warn('⚠️ No se encontró fila en "usuarios":', profileError?.message);
+        console.warn(
+          "⚠️ No se encontró fila en 'usuarios':",
+          profileError?.message
+        );
 
         // 2️⃣ Si no hay fila en usuarios, usamos datos de auth.user
         finalUser = {
           id: data.user.id,
           email: data.user.email ?? email,
-          firstName: data.user.user_metadata?.first_name ?? '',
-          lastName: data.user.user_metadata?.last_name ?? '',
+          firstName: data.user.user_metadata?.first_name ?? "",
+          lastName: data.user.user_metadata?.last_name ?? "",
           phone: data.user.user_metadata?.phone ?? null,
           plate: data.user.user_metadata?.plate ?? null,
-          rol: (data.user.user_metadata?.rol as User['rol']) ?? 'pasajero',
+          rol: (data.user.user_metadata?.rol as User["rol"]) ?? "pasajero",
+          avatar_driver_url: null,
+          avatar_passenger_url: null,
         };
       } else {
         // 3️⃣ Usar fila de "usuarios"
@@ -128,6 +140,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           phone: profileData.phone,
           plate: profileData.plate,
           rol: profileData.rol,
+          avatar_driver_url: profileData.avatar_driver_url ?? null,
+          avatar_passenger_url: profileData.avatar_passenger_url ?? null,
         };
       }
 
@@ -137,7 +151,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return finalUser;
     } catch (err: any) {
-      console.error('❌ Login exception:', err.message);
+      console.error("❌ Login exception:", err.message);
       return null;
     }
   };
@@ -146,7 +160,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * REGISTER
    * Crea usuario en auth + tabla usuarios y devuelve el User
    */
-  const register = async (newUser: User, password: string): Promise<User | null> => {
+  const register = async (
+    newUser: User,
+    password: string
+  ): Promise<User | null> => {
     try {
       // 1️⃣ Crear usuario en auth
       const { data, error } = await supabase.auth.signUp({
@@ -156,31 +173,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           data: {
             first_name: newUser.firstName,
             last_name: newUser.lastName,
-            phone: newUser.phone ?? '',
-            plate: newUser.plate ?? '',
+            phone: newUser.phone ?? "",
+            plate: newUser.plate ?? "",
             rol: newUser.rol,
           },
         },
       });
 
       if (error || !data.user) {
-        console.error('❌ Registration error:', error?.message);
+        console.error("❌ Registration error:", error?.message);
         return null;
       }
 
       // 2️⃣ Insertar fila en "usuarios"
-      const { error: profileError } = await supabase.from('usuarios').insert({
-        id: data.user.id,
-        email: newUser.email,
-        first_name: newUser.firstName,
-        last_name: newUser.lastName,
-        phone: newUser.phone ?? '',
-        plate: newUser.plate ?? '',
-        rol: newUser.rol,
-      });
+      const { error: profileError } = await supabase
+        .from("usuarios")
+        .insert({
+          id: data.user.id,
+          email: newUser.email,
+          first_name: newUser.firstName,
+          last_name: newUser.lastName,
+          phone: newUser.phone ?? "",
+          plate: newUser.plate ?? "",
+          rol: newUser.rol,
+          avatar_driver_url: null,
+          avatar_passenger_url: null,
+        });
 
       if (profileError) {
-        console.error('❌ Error creando usuario en tabla usuarios:', profileError.message);
+        console.error(
+          "❌ Error creando usuario en tabla usuarios:",
+          profileError.message
+        );
         return null;
       }
 
@@ -189,16 +213,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         email: newUser.email,
         firstName: newUser.firstName,
         lastName: newUser.lastName,
-        phone: newUser.phone ?? '',
+        phone: newUser.phone ?? "",
         plate: newUser.plate ?? null,
         rol: newUser.rol,
+        avatar_driver_url: null,
+        avatar_passenger_url: null,
       };
 
       console.log('✅ Register: usuario seteado en contexto:', finalUser);
       setUser(finalUser);
       return finalUser;
     } catch (err: any) {
-      console.error('❌ Register exception:', err.message);
+      console.error("❌ Register exception:", err.message);
       return null;
     }
   };
@@ -206,39 +232,95 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   /**
    * UPDATE PROFILE
    */
-  const updateProfile = async (profileData: Partial<User>): Promise<boolean> => {
+  const updateProfile = async (
+    profileData: Partial<User>
+  ): Promise<boolean> => {
     if (!user?.id) {
-      console.error('⚠️ No user ID available');
+      console.error("⚠️ No user ID available");
       return false;
     }
 
     try {
+      const updateRow: any = {};
+
+      if (profileData.firstName !== undefined) {
+        updateRow.first_name = profileData.firstName.trim();
+      }
+      if (profileData.lastName !== undefined) {
+        updateRow.last_name = profileData.lastName.trim();
+      }
+      if (profileData.phone !== undefined) {
+        updateRow.phone = profileData.phone
+          ? profileData.phone.trim()
+          : null;
+      }
+      if (profileData.plate !== undefined) {
+        updateRow.plate = profileData.plate
+          ? profileData.plate.trim().toUpperCase()
+          : null;
+      }
+      if (profileData.rol !== undefined) {
+        updateRow.rol = profileData.rol;
+      }
+      if (profileData.email !== undefined) {
+        updateRow.email = profileData.email.trim().toLowerCase();
+      }
+
+      // 👉 campos de avatar
+      if (profileData.avatar_driver_url !== undefined) {
+        updateRow.avatar_driver_url = profileData.avatar_driver_url;
+      }
+      if (profileData.avatar_passenger_url !== undefined) {
+        updateRow.avatar_passenger_url = profileData.avatar_passenger_url;
+      }
+
+      // 1️⃣ SI CAMBIA EL EMAIL → actualizar Supabase Auth
+      if (
+        profileData.email &&
+        profileData.email.trim().toLowerCase() !== user.email
+      ) {
+        const { error: authError } = await supabase.auth.updateUser({
+          email: profileData.email.trim().toLowerCase(),
+        });
+
+        if (authError) {
+          console.error("❌ Error updating auth email:", authError.message);
+          return false;
+        }
+      }
+
+      // 2️⃣ UPDATE en tabla usuarios
       const { error } = await supabase
-        .from('usuarios')
+        .from("usuarios")
         .update({
-          email: profileData.email ?? user.email,
-          first_name: profileData.firstName ?? user.firstName,
-          last_name: profileData.lastName ?? user.lastName,
-          phone: profileData.phone ?? user.phone,
-          plate: profileData.plate ?? user.plate,
-          rol: profileData.rol ?? user.rol,
+          ...updateRow,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id);
+        .eq("id", user.id);
 
       if (error) {
-        console.error('❌ Update profile error:', error.message);
+        console.error("❌ Update profile error:", error.message);
         return false;
       }
 
+      // 3️⃣ ACTUALIZAR ESTADO LOCAL
       setUser({
         ...user,
-        ...profileData,
-      } as User);
+        email: updateRow.email ?? user.email,
+        firstName: updateRow.first_name ?? user.firstName,
+        lastName: updateRow.last_name ?? user.lastName,
+        phone: updateRow.phone ?? user.phone,
+        plate: updateRow.plate ?? user.plate,
+        rol: updateRow.rol ?? user.rol,
+        avatar_driver_url:
+          profileData.avatar_driver_url ?? user.avatar_driver_url,
+        avatar_passenger_url:
+          profileData.avatar_passenger_url ?? user.avatar_passenger_url,
+      });
 
       return true;
     } catch (err: any) {
-      console.error('❌ Update profile exception:', err.message);
+      console.error("❌ Update profile exception:", err.message);
       return false;
     }
   };

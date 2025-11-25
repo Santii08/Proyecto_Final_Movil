@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -12,15 +14,34 @@ import {
   View,
 } from "react-native";
 
+import CameraComponent from "../components/camera";
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
+import { uploadPassengerAvatar } from "../utils/uploads";
 
 export default function PassangerProfile() {
   const router = useRouter();
-  const { user, setUser } = useContext(AuthContext);
+  const { user, setUser, updateProfile } = useContext(AuthContext);
+
   const [loading, setLoading] = useState(true);
 
-  // 🔥 Hidratar usuario si está en null, usando Supabase
+  // 👇 Estados para foto (igual que en DriverProfile)
+  const [uploading, setUploading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const [avatarUrl, setAvatarUrl] = useState<string>(
+    (user as any)?.avatar_passenger_url ?? "https://i.pravatar.cc/150"
+  );
+
+  const avatar =
+    avatarUrl ||
+    (user as any)?.avatar_passenger_url ||
+    "https://i.pravatar.cc/150";
+
+
+  /* ================================
+        HIDRATAR USUARIO DESDE SUPABASE
+  ================================== */
   useEffect(() => {
     const loadUserFromSession = async () => {
       try {
@@ -67,10 +88,14 @@ export default function PassangerProfile() {
           phone: profileData.phone,
           plate: profileData.plate,
           rol: profileData.rol,
+          avatar_url: profileData.avatar_url, // 👈 importante para foto
         };
 
         console.log("✅ Usuario reconstruido:", finalUser);
         setUser(finalUser);
+        if (profileData.avatar_url) {
+          setAvatarUrl(profileData.avatar_url);
+        }
       } catch (err: any) {
         console.error("❌ Error al hidratar usuario:", err.message);
       } finally {
@@ -81,7 +106,101 @@ export default function PassangerProfile() {
     loadUserFromSession();
   }, [user, setUser]);
 
-  // Estado de carga
+  // Si cambia el user en contexto (perfil actualizado), reflejamos avatar
+  useEffect(() => {
+    if (user?.avatar_passenger_url) {
+      setAvatarUrl(user.avatar_passenger_url);
+    }
+  }, [user?.avatar_passenger_url]);
+
+
+  /* ================================
+              CERRAR SESIÓN
+  ================================== */
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/(auth)/login");
+  };
+
+  /* ================================
+            MANEJO DE FOTO
+  ================================== */
+
+  const handleImageSelected = async (uri: string) => {
+    if (!user) return;
+
+    try {
+      setUploading(true);
+
+      // 1. subir a storage SOLO como passenger
+      const publicUrl = await uploadPassengerAvatar(user.id, uri);
+      console.log("✅ Avatar PASSENGER subido:", publicUrl);
+
+      // 2. actualizar perfil
+      const success = await updateProfile({
+        avatar_passenger_url: publicUrl,
+      });
+
+      if (!success) {
+        Alert.alert("Error", "No se pudo actualizar la foto de perfil.");
+        return;
+      }
+
+      // 3. actualizar estado local
+      setAvatarUrl(publicUrl);
+
+      Alert.alert("Éxito", "Foto de perfil de pasajero actualizada.");
+    } catch (err) {
+      console.error("❌ Error al actualizar avatar passenger:", err);
+      Alert.alert("Error", "No se pudo actualizar la foto de perfil.");
+    } finally {
+      setUploading(false);
+      setShowCamera(false);
+    }
+  };
+
+
+  const openGallery = async () => {
+    const { status } =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permiso requerido",
+        "Debes otorgar permiso a la galería para seleccionar una imagen."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      await handleImageSelected(result.assets[0].uri);
+    }
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert("Foto de perfil", "¿Qué quieres hacer?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Tomar foto",
+        onPress: () => setShowCamera(true),
+      },
+      {
+        text: "Elegir de galería",
+        onPress: openGallery,
+      },
+    ]);
+  };
+
+  /* ================================
+            ESTADOS DE CARGA
+  ================================== */
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -109,6 +228,16 @@ export default function PassangerProfile() {
   const subtitle =
     user.rol === "ambos" ? "Pasajero y conductor UniRide" : "Pasajero UniRide";
 
+  // Si la cámara está abierta, mostramos solo la cámara (igual que Driver)
+  if (showCamera) {
+    return (
+      <CameraComponent
+        onCapture={handleImageSelected}
+        onCancel={() => setShowCamera(false)}
+      />
+    );
+  }
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
       <LinearGradient
@@ -125,11 +254,25 @@ export default function PassangerProfile() {
           <Ionicons name="arrow-back" size={26} color="#fff" />
         </Pressable>
 
+        {/* Botón Cerrar Sesión (como en Driver) */}
+        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={26} color="#fff" />
+        </Pressable>
+
         <View style={styles.headerContent}>
-          <Image
-            source={{ uri: "https://i.pravatar.cc/100?img=12" }}
-            style={styles.avatar}
-          />
+          {/* Avatar con overlay de carga y Alert de opciones */}
+          <Pressable onPress={handleAvatarPress}>
+            <Image
+              source={{ uri: avatar }}
+              style={styles.avatar}
+            />
+            {uploading && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator color="#fff" />
+              </View>
+            )}
+          </Pressable>
+
           <Text style={styles.name}>{fullName}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
@@ -173,7 +316,7 @@ export default function PassangerProfile() {
         {/* Botón editar perfil */}
         <Pressable
           style={styles.button}
-          onPress={() => router.push("./(main)/editPassengerProfile")}
+          onPress={() => router.push("/(main)/editPassengerProfile")}
         >
           <LinearGradient
             colors={["#2F6CF4", "#00C2FF"]}
@@ -190,15 +333,20 @@ export default function PassangerProfile() {
 }
 
 const styles = StyleSheet.create({
-
   backButton: {
-  position: "absolute",
-  top: 50,
-  left: 20,
-  zIndex: 10,
-  padding: 6,
-},
-
+    position: "absolute",
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: 6,
+  },
+  logoutBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 6,
+  },
   center: {
     flex: 1,
     justifyContent: "center",
@@ -206,21 +354,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#F5F7FB",
   },
   header: {
-    height: 220,
+    height: 260,
     justifyContent: "center",
     alignItems: "center",
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,
   },
-  headerContent: { alignItems: "center" },
+  headerContent: { alignItems: "center", marginTop: 20 },
   avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     marginBottom: 10,
     borderWidth: 2,
     borderColor: "#fff",
     marginTop: 40,
+  },
+  avatarOverlay: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   name: { color: "#fff", fontSize: 22, fontWeight: "800" },
   subtitle: { color: "#E6F7FF", fontSize: 13 },
