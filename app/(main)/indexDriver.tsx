@@ -1,7 +1,7 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -9,8 +9,8 @@ import {
   StyleSheet,
   Switch,
   Text,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 
 export default function DriverDashboard() {
   const router = useRouter();
@@ -22,28 +22,72 @@ export default function DriverDashboard() {
   const weeklyProgress = Math.min(earningsToday / weeklyGoal, 1);
 
   const upcoming = [
-    { id: '1', origin: 'Univ. La Sabana', dest: 'Portal Norte', time: '13:40', seats: 3, price: 7000, status: 'Pendiente' },
-    { id: '2', origin: 'Chía Centro', dest: 'Calle 100', time: '16:10', seats: 2, price: 9000, status: 'Confirmado' },
+    {
+      id: "1",
+      origin: "Univ. La Sabana",
+      dest: "Portal Norte",
+      time: "13:40",
+      seats: 3,
+      price: 7000,
+      status: "Pendiente",
+    },
+    {
+      id: "2",
+      origin: "Chía Centro",
+      dest: "Calle 100",
+      time: "16:10",
+      seats: 2,
+      price: 9000,
+      status: "Confirmado",
+    },
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FB' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
       <ScrollView contentContainerStyle={styles.scroll}>
-
         {/* HEADER */}
         <LinearGradient
-          colors={['#2F6CF4', '#00C2FF']}
+          colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.header}
         >
           {/* burbujas */}
-          <LinearGradient colors={['#ffffff66', '#ffffff10']} style={[styles.bubble, { top: -30, right: -40, width: 160, height: 160, borderRadius: 80 }]} />
-          <LinearGradient colors={['#ffffff55', '#ffffff10']} style={[styles.bubble, { bottom: -20, left: -20, width: 120, height: 120, borderRadius: 60 }]} />
+          <LinearGradient
+            colors={["#ffffff66", "#ffffff10"]}
+            style={[
+              styles.bubble,
+              {
+                top: -30,
+                right: -40,
+                width: 160,
+                height: 160,
+                borderRadius: 80,
+              },
+            ]}
+          />
+          <LinearGradient
+            colors={["#ffffff55", "#ffffff10"]}
+            style={[
+              styles.bubble,
+              {
+                bottom: -20,
+                left: -20,
+                width: 120,
+                height: 120,
+                borderRadius: 60,
+              },
+            ]}
+          />
 
           <View style={styles.headerTop}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={24} color="#2F6CF4" onPress={() => router.push('/(main)/driverProfile')}/>
+              <Ionicons
+                name="person"
+                size={24}
+                color="#2F6CF4"
+                onPress={() => router.push("/(main)/driverProfile")}
+              />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.welcome}>Hola, Daniel</Text>
@@ -54,12 +98,14 @@ export default function DriverDashboard() {
             </View>
 
             <View style={styles.statusBox}>
-              <Text style={styles.statusText}>{available ? 'Disponible' : 'No disponible'}</Text>
+              <Text style={styles.statusText}>
+                {available ? "Disponible" : "No disponible"}
+              </Text>
               <Switch
                 value={available}
                 onValueChange={setAvailable}
-                thumbColor={available ? '#fff' : '#fff'}
-                trackColor={{ false: '#BFC8FF', true: '#34D399' }}
+                thumbColor={available ? "#fff" : "#fff"}
+                trackColor={{ false: "#BFC8FF", true: "#34D399" }}
               />
             </View>
           </View>
@@ -68,16 +114,25 @@ export default function DriverDashboard() {
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Hoy</Text>
-              <Text style={styles.summaryValue}>${earningsToday.toLocaleString('es-CO')}</Text>
+              <Text style={styles.summaryValue}>
+                ${earningsToday.toLocaleString("es-CO")}
+              </Text>
             </View>
-            <View style={[styles.summaryItem, { alignItems: 'flex-end' }]}>
+            <View style={[styles.summaryItem, { alignItems: "flex-end" }]}>
               <Text style={styles.summaryLabel}>Meta semanal</Text>
-              <Text style={styles.summaryValue}>${weeklyGoal.toLocaleString('es-CO')}</Text>
+              <Text style={styles.summaryValue}>
+                ${weeklyGoal.toLocaleString("es-CO")}
+              </Text>
             </View>
           </View>
 
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${weeklyProgress * 100}%` }]} />
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${weeklyProgress * 100}%` },
+              ]}
+            />
           </View>
         </LinearGradient>
 
@@ -86,24 +141,46 @@ export default function DriverDashboard() {
           <Text style={styles.cardTitle}>Acciones rápidas</Text>
           <View style={styles.actionsGrid}>
             <ActionBtn
-              icon={<Ionicons name="add-circle-outline" size={22} color="#2F6CF4" />}
+              icon={
+                <Ionicons name="add-circle-outline" size={22} color="#2F6CF4" />
+              }
               label="Publicar viaje"
-              onPress={() => router.push('/(main)/createTrip')}
+              onPress={() => router.push("/(main)/createTrip")}
             />
             <ActionBtn
-              icon={<MaterialCommunityIcons name="clipboard-text-outline" size={22} color="#2F6CF4" />}
+              icon={
+                <MaterialCommunityIcons
+                  name="clipboard-text-outline"
+                  size={22}
+                  color="#2F6CF4"
+                />
+              }
               label="Mis viajes"
-              onPress={() => router.push('/(main)/miTrip')}
+              onPress={() => router.push("/(main)/miTrip")}
             />
             <ActionBtn
-              icon={<MaterialCommunityIcons name="car-cog" size={22} color="#2F6CF4" />}
+              icon={
+                <MaterialCommunityIcons
+                  name="car-cog"
+                  size={22}
+                  color="#2F6CF4"
+                />
+              }
               label="Vehículo"
-              onPress={() => router.push('/(main)/vehicleManager')}
+              onPress={() => router.push("/(main)/vehicleManager")}
+            />
+            {/* 🔹 Nuevo botón: puntos de recogida */}
+            <ActionBtn
+              icon={<Ionicons name="map-outline" size={22} color="#2F6CF4" />}
+              label="Puntos recogida"
+              onPress={() => router.push("/(main)/driverPickupMap")}
             />
             <ActionBtn
-              icon={<Ionicons name="headset-outline" size={22} color="#2F6CF4" />}
+              icon={
+                <Ionicons name="headset-outline" size={22} color="#2F6CF4" />
+              }
               label="Soporte"
-              onPress={() => router.push('/(main)/indexDriver')}
+              onPress={() => router.push("/(main)/indexDriver")}
             />
           </View>
         </View>
@@ -112,22 +189,27 @@ export default function DriverDashboard() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Próximos viajes</Text>
-            <Pressable onPress={() => router.push('/(main)/indexDriver')}>
+            <Pressable onPress={() => router.push("/(main)/indexDriver")}>
               <Text style={styles.link}>Ver todos</Text>
             </Pressable>
           </View>
 
-          {upcoming.map(item => (
+          {upcoming.map((item) => (
             <View key={item.id} style={styles.tripRow}>
               <View style={styles.tripIcon}>
                 <Ionicons name="navigate-outline" size={18} color="#2F6CF4" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.tripRoute}>{item.origin} → {item.dest}</Text>
+                <Text style={styles.tripRoute}>
+                  {item.origin} → {item.dest}
+                </Text>
                 <View style={styles.tripMeta}>
                   <Badge icon="time-outline" text={item.time} />
                   <Badge icon="people-outline" text={`${item.seats} cupos`} />
-                  <Badge icon="cash-outline" text={`$${item.price.toLocaleString('es-CO')}`} />
+                  <Badge
+                    icon="cash-outline"
+                    text={`$${item.price.toLocaleString("es-CO")}`}
+                  />
                 </View>
               </View>
               <StatusPill status={item.status} />
@@ -141,10 +223,10 @@ export default function DriverDashboard() {
 
       <Pressable
         style={styles.fabWrap}
-        onPress={() => router.push('/(main)/indexDriver')}
+        onPress={() => router.push("/(main)/indexDriver")}
       >
         <LinearGradient
-          colors={['#2F6CF4', '#00C2FF']}
+          colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.fab}
@@ -158,7 +240,7 @@ export default function DriverDashboard() {
 }
 
 /* ---------- COMPONENTES AUXILIARES ---------- */
-import { ReactNode } from 'react';
+import { ReactNode } from "react";
 
 type ActionBtnProps = {
   icon: ReactNode;
@@ -190,16 +272,19 @@ function Badge({ icon, text }: BadgeProps) {
 }
 
 type StatusPillProps = {
-  status: 'Pendiente' | 'Confirmado' | 'Cancelado' | string;
+  status: "Pendiente" | "Confirmado" | "Cancelado" | string;
 };
 
 function StatusPill({ status }: StatusPillProps) {
   const map = {
-    Pendiente: { bg: '#FFF7ED', color: '#C2410C' },
-    Confirmado: { bg: '#ECFDF5', color: '#047857' },
-    Cancelado: { bg: '#FEF2F2', color: '#B91C1C' },
+    Pendiente: { bg: "#FFF7ED", color: "#C2410C" },
+    Confirmado: { bg: "#ECFDF5", color: "#047857" },
+    Cancelado: { bg: "#FEF2F2", color: "#B91C1C" },
   } as const;
-  const s = map[status as keyof typeof map] || { bg: '#EEF2FF', color: '#3730A3' };
+  const s = map[status as keyof typeof map] || {
+    bg: "#EEF2FF",
+    color: "#3730A3",
+  };
 
   return (
     <View style={[styles.pill, { backgroundColor: s.bg }]}>
@@ -221,103 +306,108 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   bubble: {
-    position: 'absolute',
+    position: "absolute",
     opacity: 0.9,
   },
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   avatar: {
     width: 46,
     height: 46,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
     elevation: 3,
   },
   welcome: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 2,
   },
   ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   ratingText: {
-    color: '#E6F7FF',
+    color: "#E6F7FF",
     fontSize: 13,
   },
   statusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    backgroundColor: '#ffffff22',
+    backgroundColor: "#ffffff22",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
   },
-  statusText: { color: '#fff', fontWeight: '700', marginRight: 6 },
+  statusText: { color: "#fff", fontWeight: "700", marginRight: 6 },
 
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 14,
   },
   summaryItem: {},
-  summaryLabel: { color: '#E6F7FF', fontSize: 12 },
-  summaryValue: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  summaryLabel: { color: "#E6F7FF", fontSize: 12 },
+  summaryValue: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
   progressTrack: {
     marginTop: 10,
     height: 8,
     borderRadius: 6,
-    backgroundColor: '#ffffff33',
-    overflow: 'hidden',
+    backgroundColor: "#ffffff33",
+    overflow: "hidden",
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: '#34D399',
+    height: "100%",
+    backgroundColor: "#34D399",
   },
 
   /* Cards */
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginHorizontal: 18,
     marginTop: 14,
     padding: 16,
     borderRadius: 16,
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 12,
   },
   cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 10 },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 10,
+  },
 
   /* Actions */
   actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   actionBtn: {
-    width: '48%',
-    backgroundColor: '#F9FAFB',
+    width: "48%",
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 12,
@@ -326,65 +416,65 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EEF4FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
   },
   actionLabel: {
-    color: '#1F2937',
-    fontWeight: '700',
+    color: "#1F2937",
+    fontWeight: "700",
     fontSize: 14,
   },
-  link: { color: '#2F6CF4', fontWeight: '700' },
+  link: { color: "#2F6CF4", fontWeight: "700" },
 
   /* Trips */
   tripRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
   },
   tripIcon: {
     width: 34,
     height: 34,
     borderRadius: 10,
-    backgroundColor: '#EEF4FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#EEF4FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   tripRoute: {
-    color: '#111827',
-    fontWeight: '700',
+    color: "#111827",
+    fontWeight: "700",
   },
   tripMeta: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 4,
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 999,
   },
-  badgeText: { color: '#4B5563', fontSize: 12 },
+  badgeText: { color: "#4B5563", fontSize: 12 },
 
   pill: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
   },
-  pillText: { fontWeight: '800', fontSize: 12 },
+  pillText: { fontWeight: "800", fontSize: 12 },
 
   /* FAB */
   fabWrap: {
-    position: 'absolute',
+    position: "absolute",
     left: 18,
     right: 18,
     bottom: 18,
@@ -392,15 +482,15 @@ const styles = StyleSheet.create({
   fab: {
     height: 54,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: 8,
     elevation: 5,
   },
   fabText: {
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     fontSize: 16,
   },
 });

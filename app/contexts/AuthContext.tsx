@@ -1,6 +1,6 @@
 // app/contexts/AuthContext.tsx
 
-import { createContext, ReactNode, useState } from 'react';
+import { createContext, ReactNode, useEffect, useState } from 'react';
 import { User } from '../types/common.type';
 import { supabase } from '../utils/supabase';
 
@@ -16,6 +16,69 @@ export const AuthContext = createContext<AuthContextProps>({} as AuthContextProp
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+
+  /* 🔥 HIDRATAR USUARIO AL MONTAR LA APP
+     Esto hace que, incluso si entras directo a DriverPickupMap,
+     el AuthContext intente recuperar el usuario desde Supabase.
+  */
+  useEffect(() => {
+    const hydrateUserFromSession = async () => {
+      try {
+        console.log('🔄 AuthContext: intentando hidratar sesión desde Supabase...');
+
+        const { data, error } = await supabase.auth.getUser();
+
+        if (error || !data.user) {
+          console.log('⚠️ AuthContext: no hay sesión activa en Supabase.');
+          return;
+        }
+
+        // Buscar la fila en "usuarios"
+        const { data: profileData, error: profileError } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        let finalUser: User;
+
+        if (profileError || !profileData) {
+          console.warn(
+            '⚠️ AuthContext: usuario logueado pero sin fila en "usuarios":',
+            profileError?.message
+          );
+
+          // Fallback: usar user_metadata
+          finalUser = {
+            id: data.user.id,
+            email: data.user.email ?? '',
+            firstName: data.user.user_metadata?.first_name ?? '',
+            lastName: data.user.user_metadata?.last_name ?? '',
+            phone: data.user.user_metadata?.phone ?? null,
+            plate: data.user.user_metadata?.plate ?? null,
+            rol: (data.user.user_metadata?.rol as User['rol']) ?? 'pasajero',
+          };
+        } else {
+          finalUser = {
+            id: profileData.id,
+            email: profileData.email,
+            firstName: profileData.first_name,
+            lastName: profileData.last_name,
+            phone: profileData.phone,
+            plate: profileData.plate,
+            rol: profileData.rol,
+          };
+        }
+
+        console.log('✅ AuthContext: usuario hidratado desde sesión:', finalUser);
+        setUser(finalUser);
+      } catch (err: any) {
+        console.error('❌ AuthContext: error hidratando sesión:', err.message);
+      }
+    };
+
+    hydrateUserFromSession();
+  }, []);
 
   /**
    * LOGIN
@@ -69,6 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // 🔥 Guardar en el contexto
+      console.log('✅ Login: usuario seteado en contexto:', finalUser);
       setUser(finalUser);
 
       return finalUser;
@@ -130,6 +194,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         rol: newUser.rol,
       };
 
+      console.log('✅ Register: usuario seteado en contexto:', finalUser);
       setUser(finalUser);
       return finalUser;
     } catch (err: any) {

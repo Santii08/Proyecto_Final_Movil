@@ -6,37 +6,70 @@ import {
   Alert,
   FlatList,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../utils/supabase";
 
-/* ---------- TYPES ---------- */
+/* ---------- TIPOS PARA LA UI ---------- */
 type Trip = {
-  id: string; // uuid de la tabla viajes
-  driver: string; // nombre del conductor
+  id: string;
+  driver: string;
+  driverId: string;
   origin: string;
   destination: string;
-  time: string; // hora formateada
+  time: string;
   price: number;
-  rating: number; // por ahora mock
+  rating: number;
+  origin_lat: number | null;
+  origin_lng: number | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
+};
+
+/* ---------- TIPO TAL COMO LLEGA DE SUPABASE ---------- */
+type TripFromDB = {
+  id: string;
+  driver_id: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  price: number;
+  seats_total: number;
+  seats_available: number;
+  status: string;
+  vehicle_id: string | null;
+  origin_lat: number | null;
+  origin_lng: number | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
+  vehiculo?: {
+    plate?: string | null;
+    color?: string | null;
+  } | null;
+  conductor?: {
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
 };
 
 const PassengerHome: React.FC = () => {
   const [search, setSearch] = useState("");
   const { user, setUser } = useContext(AuthContext);
-
+  const insets = useSafeAreaInsets();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
 
   /* -----------------------------------------
-     🔄 Hidratar usuario si viene null 
+     🔄 Hidratar usuario si viene null
   ------------------------------------------*/
   useEffect(() => {
     const loadUserFromSession = async () => {
@@ -45,7 +78,7 @@ const PassengerHome: React.FC = () => {
 
         const { data, error } = await supabase.auth.getUser();
         if (error || !data.user) {
-          console.log("⚠️ No hay sesión activa en Supabase (IndexPassenger)");
+          console.log("⚠ No hay sesión activa en Supabase (IndexPassenger)");
           return;
         }
 
@@ -57,7 +90,7 @@ const PassengerHome: React.FC = () => {
 
         if (profileError || !profileData) {
           console.warn(
-            "⚠️ No se encontró fila en 'usuarios' desde IndexPassenger:",
+            "⚠ No se encontró fila en 'usuarios' desde IndexPassenger:",
             profileError?.message
           );
 
@@ -102,60 +135,160 @@ const PassengerHome: React.FC = () => {
   }, [user, setUser]);
 
   /* -----------------------------------------
-     🔥 Cargar viajes reales desde Supabase
+     🔔 Avisos al pasajero por decisiones del conductor
   ------------------------------------------*/
   useEffect(() => {
-    const loadTrips = async () => {
+    const checkDriverResponses = async () => {
       try {
-        setLoadingTrips(true);
-
-        // join con usuarios para sacar nombre del conductor
-        const { data, error } = await supabase
-          .from("viajes")
-          .select(
-            "id, origin, destination, departure_time, price, usuarios(first_name, last_name)"
-          )
-          .eq("status", "publicado");
-
-        if (error) {
-          console.error("❌ Error cargando viajes:", error.message);
-          setTrips([]);
+        if (!user) {
+          console.log(
+            "👤 PassengerHome: no hay usuario, no se revisan respuestas del conductor."
+          );
           return;
         }
 
-        const safeData = (data ?? []) as any[];
+        console.log(
+          "🔎 PassengerHome: revisando respuestas del conductor para pasajero:",
+          user.id
+        );
 
-        const mapped: Trip[] = safeData.map((v) => {
-          const conductor =
-            v.usuarios && v.usuarios.first_name
-              ? `${v.usuarios.first_name} ${v.usuarios.last_name ?? ""}`.trim()
-              : "Conductor";
+        const { data, error } = await supabase
+          .from("reservas")
+          .select(
+            "id, status, pickup_lat, pickup_lng, pickup_address, driver_seen, passenger_seen, trip_id"
+          )
+          .eq("passenger_id", user.id)
+          .in("status", ["accepted", "confirmada", "counter_proposed"])
+          .eq("passenger_seen", false)
+          .maybeSingle();
 
-          return {
-            id: v.id, // uuid real
-            driver: conductor,
-            origin: v.origin,
-            destination: v.destination,
-            time: new Date(v.departure_time).toLocaleTimeString("es-CO", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            price: v.price,
-            rating: 4.9, // por ahora mock fijo
-          };
+        if (error) {
+          console.log(
+            "❌ Error buscando respuestas del conductor:",
+            error.message
+          );
+          return;
+        }
+
+        console.log("🔎 PassengerHome: resultado consulta reservas:", data);
+
+        if (!data) {
+          console.log(
+            "ℹ PassengerHome: no hay reservas con respuesta pendiente para este pasajero."
+          );
+          return;
+        }
+
+        // 👉 Navegar al mapa de confirmación con todos los datos
+        router.push({
+          pathname: "/(main)/passengerPickupConfirmMap",
+          params: {
+            reserva_id: data.id,
+            trip_id: data.trip_id,
+            status: data.status,
+            pickup_lat: data.pickup_lat ? String(data.pickup_lat) : "",
+            pickup_lng: data.pickup_lng ? String(data.pickup_lng) : "",
+            pickup_address: data.pickup_address ?? "",
+          },
         });
+      } catch (err: any) {
+        console.log(
+          "❌ Excepción revisando respuestas del conductor:",
+          err.message
+        );
+      }
+    };
+
+    checkDriverResponses();
+  }, [user]);
+
+  /* -----------------------------------------
+     🚗 Cargar viajes disponibles de otros conductores
+  ------------------------------------------*/
+  useEffect(() => {
+    const fetchTrips = async () => {
+      if (!user) return;
+
+      try {
+        setLoadingTrips(true);
+
+        const { data, error } = await supabase
+          .from("viajes")
+          .select(
+            `
+            id,
+            driver_id,
+            origin,
+            destination,
+            departure_time,
+            price,
+            seats_total,
+            seats_available,
+            status,
+            vehicle_id,
+            origin_lat,
+            origin_lng,
+            destination_lat,
+            destination_lng,
+            vehiculo:vehiculos (
+              plate,
+              color
+            ),
+            conductor:usuarios (
+              first_name,
+              last_name
+            )
+          `
+          )
+          .eq("status", "publicado")
+          .gt("seats_available", 0)
+          .neq("driver_id", user.id);
+
+        if (error) {
+          console.error("❌ Error cargando viajes:", error.message);
+          return;
+        }
+
+        const mapped: Trip[] =
+          (data as TripFromDB[]).map((t) => {
+            const nombreConductor =
+              t.conductor?.first_name || t.conductor?.last_name
+                ? `${t.conductor?.first_name ?? ""} ${
+                    t.conductor?.last_name ?? ""
+                  }`.trim()
+                : t.vehiculo?.plate
+                ? `Placa ${t.vehiculo.plate}`
+                : "Conductor UniRide";
+
+            return {
+              id: t.id,
+              driverId: t.driver_id,
+              driver: nombreConductor,
+              origin: t.origin,
+              destination: t.destination,
+              time: new Date(t.departure_time).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              price: t.price,
+              rating: 5.0,
+              origin_lat: t.origin_lat,
+              origin_lng: t.origin_lng,
+              destination_lat: t.destination_lat,
+              destination_lng: t.destination_lng,
+            };
+          }) ?? [];
 
         setTrips(mapped);
-      } catch (err) {
-        console.error("❌ Excepción cargando viajes:", err);
-        setTrips([]);
+      } catch (e) {
+        console.error("❌ Excepción al cargar viajes:", e);
       } finally {
         setLoadingTrips(false);
       }
     };
 
-    loadTrips();
-  }, []);
+    fetchTrips();
+  }, [user]);
 
   /* -----------------------------------------
      FILTRO DE VIAJES
@@ -177,20 +310,24 @@ const PassengerHome: React.FC = () => {
       return;
     }
 
+    if (trip.driverId === user.id) {
+      Alert.alert(
+        "Aviso",
+        "No puedes reservar un viaje que tú mismo ofreces como conductor."
+      );
+      return;
+    }
+
     try {
-      // Evitar reservas repetidas
       const { data: existing, error: existingError } = await supabase
         .from("reservas")
         .select("*")
-        .eq("trip_id", trip.id) // ahora es uuid válido
-        .eq("passenger_id", user.id) // uuid de usuarios
+        .eq("trip_id", trip.id)
+        .eq("passenger_id", user.id)
         .maybeSingle();
 
       if (existingError) {
-        console.error(
-          "❌ Error consultando reservas existentes:",
-          existingError.message
-        );
+        console.error("❌ Error comprobando reserva existente:", existingError);
       }
 
       if (existing) {
@@ -198,7 +335,6 @@ const PassengerHome: React.FC = () => {
         return;
       }
 
-      // Crear la reserva
       const { error } = await supabase.from("reservas").insert({
         trip_id: trip.id,
         passenger_id: user.id,
@@ -234,13 +370,16 @@ const PassengerHome: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: "#F5F7FB" }}
+      edges={["left", "right", "bottom"]}
+    >
       <ScrollView contentContainerStyle={styles.scroll}>
         <LinearGradient
           colors={["#2F6CF4", "#00C2FF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={[styles.header, { paddingTop: 18 + insets.top }]}
         >
           <View style={styles.headerTop}>
             <View>
@@ -332,16 +471,34 @@ const PassengerHome: React.FC = () => {
 
                     <Pressable
                       style={styles.reserveBtn}
-                      onPress={() =>
+                      onPress={() => {
+                        if (
+                          item.origin_lat == null ||
+                          item.origin_lng == null ||
+                          item.destination_lat == null ||
+                          item.destination_lng == null
+                        ) {
+                          Alert.alert(
+                            "Sin coordenadas",
+                            "Este viaje no tiene coordenadas registradas aún."
+                          );
+                          return;
+                        }
+
                         router.push({
                           pathname: "/(main)/mapScreen",
                           params: {
                             trip_id: item.id,
-                            destination_lat: item.destination_lat,
-                            destination_lng: item.destination_lng,
+                            driver: item.driver,
+                            time: item.time,
+                            price: String(item.price),
+                            origin_lat: String(item.origin_lat),
+                            origin_lng: String(item.origin_lng),
+                            destination_lat: String(item.destination_lat),
+                            destination_lng: String(item.destination_lng),
                           },
-                        })
-                      }
+                        });
+                      }}
                     >
                       <Text style={styles.reserveText}>Ver ruta</Text>
                     </Pressable>
@@ -381,7 +538,6 @@ const styles = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 25,
     borderBottomLeftRadius: 36,
     borderBottomRightRadius: 36,
@@ -412,7 +568,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontSize: 15,
   },
-
   quickActions: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -430,7 +585,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   actionLabel: { fontSize: 13, fontWeight: "700", color: "#1F2937" },
-
   card: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -449,7 +603,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   noTrips: { textAlign: "center", color: "#6B7280", marginTop: 12 },
-
   tripItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -469,7 +622,6 @@ const styles = StyleSheet.create({
   driverName: { fontWeight: "600", color: "#1E3A8A", fontSize: 14 },
   ratingRow: { flexDirection: "row", alignItems: "center", marginVertical: 2 },
   ratingText: { marginLeft: 4, color: "#4B5563", fontSize: 12 },
-
   reserveBtn: {
     backgroundColor: "#2F6CF4",
     borderRadius: 8,
