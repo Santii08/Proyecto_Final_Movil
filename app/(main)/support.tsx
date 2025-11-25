@@ -4,11 +4,15 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import UniRideLogo from "../../components/UniRideLogo";
@@ -144,7 +148,12 @@ No agregues nada fuera del JSON.
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
+  <KeyboardAvoidingView
+    style={{ flex: 1, backgroundColor: "#0F172A" }}
+    behavior={Platform.OS === "ios" ? "padding" : "height"}
+    keyboardVerticalOffset={Platform.OS === "ios" ? 30 : 0}
+  >
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* HEADER */}
         <LinearGradient
@@ -195,8 +204,7 @@ No agregues nada fuera del JSON.
         <View style={styles.formSection}>
           <Text style={styles.formTitle}>Cuéntanos qué ocurrió</Text>
           <Text style={styles.formDesc}>
-            Nuestro equipo revisará tu caso y te responderá por correo o
-            WhatsApp.
+            Nuestro equipo revisará tu caso y te responderá por correo o WhatsApp.
           </Text>
 
           <TextInput
@@ -227,7 +235,7 @@ No agregues nada fuera del JSON.
             )}
           </Pressable>
 
-          {/* Mensaje de error */}
+          {/* Errores */}
           {error && (
             <Text style={{ color: "#F97316", marginTop: 10 }}>
               {error}
@@ -243,8 +251,10 @@ No agregues nada fuera del JSON.
           )}
         </View>
       </ScrollView>
-    </View>
-  );
+    </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
+);
+
 }
 
 /* ============================================

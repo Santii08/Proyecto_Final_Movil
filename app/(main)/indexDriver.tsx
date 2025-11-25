@@ -63,6 +63,8 @@ export default function DriverDashboard() {
   const [tripModalVisible, setTripModalVisible] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
 
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
+
   const weeklyProgress = Math.min(
     weeklyGoal > 0 ? earningsWeek / weeklyGoal : 0,
     1
@@ -692,8 +694,8 @@ export default function DriverDashboard() {
                 f === 'today'
                   ? 'Hoy'
                   : f === 'week'
-                  ? 'Esta semana'
-                  : 'Recientes';
+                    ? 'Esta semana'
+                    : 'Recientes';
               const active = tripFilter === f;
               return (
                 <Pressable
@@ -744,15 +746,33 @@ export default function DriverDashboard() {
                   </View>
 
                   <View style={{ flex: 1 }}>
-                    {/* Fila superior: ruta + pill */}
+                    {/* Fila superior: ruta + acciones (QR + pill) */}
                     <View style={styles.tripHeaderRow}>
                       <Text style={styles.tripRoute}>
                         {item.origin} → {item.destination}
                       </Text>
-                      <StatusPill
-                        status={uiStatus}
-                        onPress={() => handleCancelTrip(item)}
-                      />
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* Botón QR */}
+                        <Pressable
+                          style={styles.qrBtn}
+                          onPress={(e) => {
+                            e.stopPropagation(); // 👈 evita que se dispare openTripDetails
+                            router.push({
+                              pathname: '/(main)/endTripQR',
+                              params: { trip_id: item.id },
+                            });
+                          }}
+                        >
+                          <Ionicons name="qr-code-outline" size={16} color="#fff" />
+                          <Text style={styles.qrBtnText}>QR</Text>
+                        </Pressable>
+
+                        <StatusPill
+                          status={uiStatus}
+                          onPress={() => handleCancelTrip(item)}
+                        />
+                      </View>
                     </View>
 
                     {/* Fila inferior: info fecha / hora / cupos / placa / precio */}
@@ -1305,4 +1325,19 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 6,
   },
+  qrBtn: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+  borderRadius: 999,
+  backgroundColor: '#2F6CF4',
+},
+qrBtnText: {
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: '700',
+  marginLeft: 4,
+},
+
 });

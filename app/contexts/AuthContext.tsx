@@ -143,37 +143,75 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const updateProfile = async (profileData: Partial<User>): Promise<boolean> => {
     if (!user?.id) {
-      console.error('⚠️ No user ID available');
+      console.error("⚠️ No user ID available");
       return false;
     }
 
     try {
+      const updateRow: any = {};
+
+      if (profileData.firstName !== undefined) {
+        updateRow.first_name = profileData.firstName.trim();
+      }
+      if (profileData.lastName !== undefined) {
+        updateRow.last_name = profileData.lastName.trim();
+      }
+      if (profileData.phone !== undefined) {
+        updateRow.phone = profileData.phone ? profileData.phone.trim() : null;
+      }
+      if (profileData.plate !== undefined) {
+        updateRow.plate = profileData.plate ? profileData.plate.trim().toUpperCase() : null;
+      }
+      if (profileData.rol !== undefined) {
+        updateRow.rol = profileData.rol;
+      }
+      if (profileData.email !== undefined) {
+        updateRow.email = profileData.email.trim().toLowerCase();
+      }
+
+      // 1️⃣ SI CAMBIA EL EMAIL → actualizar Supabase Auth
+      if (
+        profileData.email &&
+        profileData.email.trim().toLowerCase() !== user.email
+      ) {
+        const { error: authError } = await supabase.auth.updateUser({
+          email: profileData.email.trim().toLowerCase(),
+        });
+
+        if (authError) {
+          console.error("❌ Error updating auth email:", authError.message);
+          return false;
+        }
+      }
+
+      // 2️⃣ UPDATE en tabla usuarios
       const { error } = await supabase
-        .from('usuarios')
+        .from("usuarios")
         .update({
-          email: profileData.email ?? user.email,
-          first_name: profileData.firstName ?? user.firstName,
-          last_name: profileData.lastName ?? user.lastName,
-          phone: profileData.phone ?? user.phone,
-          plate: profileData.plate ?? user.plate,
-          rol: profileData.rol ?? user.rol,
+          ...updateRow,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id);
+        .eq("id", user.id);
 
       if (error) {
-        console.error('❌ Update profile error:', error.message);
+        console.error("❌ Update profile error:", error.message);
         return false;
       }
 
+      // 3️⃣ ACTUALIZAR ESTADO LOCAL
       setUser({
         ...user,
-        ...profileData,
-      } as User);
+        email: updateRow.email ?? user.email,
+        firstName: updateRow.first_name ?? user.firstName,
+        lastName: updateRow.last_name ?? user.lastName,
+        phone: updateRow.phone ?? user.phone,
+        plate: updateRow.plate ?? user.plate,
+        rol: updateRow.rol ?? user.rol,
+      });
 
       return true;
     } catch (err: any) {
-      console.error('❌ Update profile exception:', err.message);
+      console.error("❌ Update profile exception:", err.message);
       return false;
     }
   };

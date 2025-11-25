@@ -5,15 +5,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import { AuthContext } from '../contexts/AuthContext';
@@ -26,7 +26,6 @@ export default function EditPassengerProfile() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [plate, setPlate] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Cargar datos iniciales del usuario
@@ -36,7 +35,6 @@ export default function EditPassengerProfile() {
       setLastName(user.lastName ?? '');
       setEmail(user.email ?? '');
       setPhone(user.phone ?? '');
-      setPlate(user.plate ?? '');
     }
   }, [user]);
 
@@ -61,7 +59,6 @@ export default function EditPassengerProfile() {
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
-        plate: plate.trim().toUpperCase(),
       });
 
       if (ok) {
@@ -151,19 +148,6 @@ export default function EditPassengerProfile() {
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-          />
-        </View>
-
-        {/* Placa (opcional) */}
-        <View style={styles.inputRow}>
-          <Ionicons name="card-outline" size={20} color="#4B5563" style={styles.icon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Placa (si aplica)"
-            placeholderTextColor="#9CA3AF"
-            value={plate}
-            onChangeText={setPlate}
-            autoCapitalize="characters"
           />
         </View>
 
