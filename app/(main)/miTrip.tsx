@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useContext, useEffect, useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -79,20 +80,22 @@ export default function MyTrips() {
 
     if (error) {
       console.log("❌ Error trayendo viajes:", error.message);
+      setLoading(false);
       return;
     }
 
-    const mapped = data?.map((row: any) => ({
-      id: row.id,
-      origin: row.origin,
-      destination: row.destination,
-      departure_time: row.departure_time,
-      seats_available: row.seats_available,
-      price: row.price,
-      status: row.status,
-      vehicle_plate: row.vehiculo?.plate ?? null,
-      vehicle_color: row.vehiculo?.color ?? null,
-    }));
+    const mapped =
+      data?.map((row: any) => ({
+        id: row.id,
+        origin: row.origin,
+        destination: row.destination,
+        departure_time: row.departure_time,
+        seats_available: row.seats_available,
+        price: row.price,
+        status: row.status,
+        vehicle_plate: row.vehiculo?.plate ?? null,
+        vehicle_color: row.vehiculo?.color ?? null,
+      })) ?? [];
 
     setTrips(mapped);
     setLoading(false);
@@ -119,6 +122,35 @@ export default function MyTrips() {
     }
   };
 
+  /* ---------------- ELIMINAR VIAJE ---------------- */
+  const handleDeleteTrip = (trip: Trip) => {
+    Alert.alert(
+      "Eliminar viaje",
+      "¿Seguro que quieres eliminar este viaje? Esta acción no se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("viajes")
+              .delete()
+              .eq("id", trip.id);
+
+            if (error) {
+              console.log("❌ Error eliminando viaje:", error.message);
+              Alert.alert("Error", "No se pudo eliminar el viaje.");
+              return;
+            }
+
+            setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: "#F5F7FB" }}
@@ -133,10 +165,7 @@ export default function MyTrips() {
           style={[styles.header, { paddingTop: insets.top + 16 }]}
         >
           {/* Botón atrás */}
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={26} color="#fff" />
           </Pressable>
 
@@ -161,57 +190,70 @@ export default function MyTrips() {
               const ui = mapStatusLabel(t.status);
 
               return (
-                <View key={t.id} style={styles.trip}>
-                  <View style={styles.tripLeft}>
-                    <View
-                      style={[
-                        styles.tripIcon,
-                        { backgroundColor: t.vehicle_color ?? "#EEF4FF" },
-                      ]}
-                    >
-                      <Ionicons
-                        name="car-sport-outline"
-                        size={20}
-                        color="#fff"
-                      />
-                    </View>
+                <Pressable
+                  key={t.id}
+                  style={styles.trip}
+                  onPress={() => handleDeleteTrip(t)}
+                >
+                  {/* Icono */}
+                  <View
+                    style={[
+                      styles.tripIcon,
+                      { backgroundColor: t.vehicle_color ?? "#EEF4FF" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="car-sport-outline"
+                      size={20}
+                      color="#fff"
+                    />
+                  </View>
 
-                    <View>
-                      <Text style={styles.tripRoute}>
+                  {/* Contenido */}
+                  <View style={{ flex: 1 }}>
+                    {/* Ruta + estado en la misma fila */}
+                    <View style={styles.tripHeaderRow}>
+                      <Text
+                        style={styles.tripRoute}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
                         {t.origin} → {t.destination}
                       </Text>
 
-                      <View style={{ flexDirection: "row", gap: 10 }}>
-                        <Text style={styles.tripMeta}>
-                          {formatDate(t.departure_time)}
-                        </Text>
-                        <Text style={styles.tripMeta}>
-                          {formatTime(t.departure_time)}
+                      <View
+                        style={[
+                          styles.statusPill,
+                          { backgroundColor: ui.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: ui.color },
+                          ]}
+                        >
+                          {ui.text}
                         </Text>
                       </View>
+                    </View>
 
+                    {/* Fecha + hora */}
+                    <View style={styles.metaRow}>
                       <Text style={styles.tripMeta}>
-                        ${t.price.toLocaleString("es-CO")}
+                        {formatDate(t.departure_time)}
+                      </Text>
+                      <Text style={styles.tripMeta}>
+                        {formatTime(t.departure_time)}
                       </Text>
                     </View>
-                  </View>
 
-                  <View
-                    style={[
-                      styles.statusPill,
-                      { backgroundColor: ui.bg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: ui.color },
-                      ]}
-                    >
-                      {ui.text}
+                    {/* Precio */}
+                    <Text style={styles.tripMeta}>
+                      ${t.price.toLocaleString("es-CO")}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               );
             })
           )}
@@ -233,13 +275,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   backBtn: {
-    position: 'absolute',
+    position: "absolute",
     top: 70,
     left: 20,
   },
   headerContent: {
     gap: 4,
-     marginTop: 40 
+    marginTop: 40,
   },
   headerTitle: {
     color: "#fff",
@@ -266,22 +308,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: "#111827",
-    marginBottom: 0,
+    marginBottom: 4,
   },
   trip: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start", // 👈 importante para que la pill quede arriba
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
     paddingVertical: 14,
-    paddingHorizontal: 10,
-  },
-  tripLeft: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 10,
-    flex: 1,
   },
   tripIcon: {
     width: 44,
@@ -289,19 +324,31 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 2,
+  },
+  tripHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
   },
   tripRoute: {
     fontWeight: "700",
     color: "#111827",
     fontSize: 15,
+    flex: 1, // 👈 para que el texto no se meta debajo del pill
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 2,
   },
   tripMeta: {
     color: "#6B7280",
     fontSize: 13,
   },
   statusPill: {
-    paddingVertical: 8,
-    margin: 10,
+    paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 999,
   },
